@@ -192,62 +192,96 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 MAIN_LOOP: asyncio.AbstractEventLoop | None = None
 
 
+@dataclass(frozen=True)
+class RoomSocketConnection:
+    websocket: WebSocket
+    account_id: str
+
+
+@dataclass(frozen=True)
+class AccountSocketConnection:
+    websocket: WebSocket
+
+
 class RoomWebSocketHub:
     def __init__(self) -> None:
-        self.connections: dict[int, set[WebSocket]] = defaultdict(set)
+        self.connections: dict[int, set[RoomSocketConnection]] = defaultdict(set)
+        self._lock = threading.RLock()
 
-    async def connect(self, room_id: int, websocket: WebSocket) -> None:
+    async def connect(self, room_id: int, account_id: str, websocket: WebSocket) -> None:
         await websocket.accept()
-        self.connections[room_id].add(websocket)
+        with self._lock:
+            self.connections[room_id].add(RoomSocketConnection(websocket=websocket, account_id=account_id))
 
     def disconnect(self, room_id: int, websocket: WebSocket) -> None:
-        sockets = self.connections.get(room_id)
-        if not sockets:
-            return
-        sockets.discard(websocket)
-        if not sockets:
-            self.connections.pop(room_id, None)
+        with self._lock:
+            sockets = self.connections.get(room_id)
+            if not sockets:
+                return
+            remaining = {connection for connection in sockets if connection.websocket is not websocket}
+            if remaining:
+                self.connections[room_id] = remaining
+            else:
+                self.connections.pop(room_id, None)
 
-    async def broadcast(self, room_id: int, payload: dict) -> None:
-        sockets = list(self.connections.get(room_id, set()))
+    async def broadcast(self, room_id: int, payload: dict[str, Any], *, allowed_account_ids: set[str] | None = None) -> None:
+        with self._lock:
+            sockets = list(self.connections.get(room_id, set()))
         stale: list[WebSocket] = []
         encoded_payload = jsonable_encoder(payload)
-        for socket in sockets:
+        for connection in sockets:
+            if allowed_account_ids is not None and connection.account_id not in allowed_account_ids:
+                continue
             try:
-                await socket.send_json(encoded_payload)
+                await connection.websocket.send_json(encoded_payload)
             except Exception:
-                stale.append(socket)
-        for socket in stale:
-            self.disconnect(room_id, socket)
+                stale.append(connection.websocket)
+        for websocket in stale:
+            self.disconnect(room_id, websocket)
+            with contextlib.suppress(Exception):
+                await websocket.close()
 
 
 class AccountWebSocketHub:
     def __init__(self) -> None:
-        self.connections: dict[str, set[WebSocket]] = defaultdict(set)
+        self.connections: dict[str, set[AccountSocketConnection]] = defaultdict(set)
+        self._lock = threading.RLock()
 
     async def connect(self, account_id: str, websocket: WebSocket) -> None:
         await websocket.accept()
-        self.connections[account_id].add(websocket)
+        with self._lock:
+            self.connections[account_id].add(AccountSocketConnection(websocket=websocket))
 
     def disconnect(self, account_id: str, websocket: WebSocket) -> None:
-        sockets = self.connections.get(account_id)
-        if not sockets:
-            return
-        sockets.discard(websocket)
-        if not sockets:
-            self.connections.pop(account_id, None)
+        with self._lock:
+            sockets = self.connections.get(account_id)
+            if not sockets:
+                return
+            remaining = {connection for connection in sockets if connection.websocket is not websocket}
+            if remaining:
+                self.connections[account_id] = remaining
+            else:
+                self.connections.pop(account_id, None)
 
-    async def broadcast_many(self, account_ids: list[str], payload: dict) -> None:
+    async def broadcast_many(self, account_ids: list[str], payload: dict[str, Any]) -> None:
         stale: list[tuple[str, WebSocket]] = []
         encoded_payload = jsonable_encoder(payload)
-        for account_id in sorted(set(account_ids)):
-            for socket in list(self.connections.get(account_id, set())):
+        unique_account_ids = sorted(set(account_ids))
+        with self._lock:
+            sockets_by_account = {
+                account_id: list(self.connections.get(account_id, set()))
+                for account_id in unique_account_ids
+            }
+        for account_id, connections in sockets_by_account.items():
+            for connection in connections:
                 try:
-                    await socket.send_json(encoded_payload)
+                    await connection.websocket.send_json(encoded_payload)
                 except Exception:
-                    stale.append((account_id, socket))
-        for account_id, socket in stale:
-            self.disconnect(account_id, socket)
+                    stale.append((account_id, connection.websocket))
+        for account_id, websocket in stale:
+            self.disconnect(account_id, websocket)
+            with contextlib.suppress(Exception):
+                await websocket.close()
 
 
 ws_hub = RoomWebSocketHub()
@@ -332,9 +366,10 @@ def member_ids_for_room(db: Session, room_id: int) -> list[str]:
     return list(db.scalars(select(RoomMembership.account_id).where(RoomMembership.room_id == room_id)).all())
 
 
-async def broadcast_room_event(db: Session, room_id: int, payload: dict, account_ids: list[str] | None = None) -> None:
+async def broadcast_room_event(db: Session, room_id: int, payload: dict[str, Any], account_ids: list[str] | None = None) -> None:
     targets = account_ids if account_ids is not None else member_ids_for_room(db, room_id)
-    await ws_hub.broadcast(room_id, payload)
+    allowed_account_ids = set(targets)
+    await ws_hub.broadcast(room_id, payload, allowed_account_ids=allowed_account_ids)
     await events_hub.broadcast_many(targets, payload)
 
 
@@ -354,14 +389,22 @@ def create_attention_events(db: Session, room_id: int, sender_id: str, message_i
         )
 
 
+def get_account_for_token(db: Session, token: str) -> Account | None:
+    normalized = token.strip()
+    if not normalized:
+        return None
+    auth = db.scalar(select(AuthSession).where(AuthSession.token == normalized))
+    return auth.account if auth else None
+
+
 def get_current_account(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> Account:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing auth token")
     token = authorization.removeprefix("Bearer ").strip()
-    auth = db.scalar(select(AuthSession).where(AuthSession.token == token))
-    if not auth:
+    account = get_account_for_token(db, token)
+    if not account:
         raise HTTPException(status_code=401, detail="Invalid session")
-    return auth.account
+    return account
 
 
 def reset_legacy_db_if_needed() -> None:
@@ -615,43 +658,55 @@ def ack_attention(event_id: int, current: Account = Depends(get_current_account)
 @app.websocket("/ws/rooms/{room_id}")
 async def room_socket(websocket: WebSocket, room_id: int):
     token = websocket.query_params.get("token", "")
-    if not token:
+    if not token.strip():
         await websocket.close(code=4401)
         return
+
     db = SessionLocal()
+    account_id: str | None = None
     try:
-        auth = db.scalar(select(AuthSession).where(AuthSession.token == token))
-        if not auth:
+        account = get_account_for_token(db, token)
+        if not account:
             await websocket.close(code=4401)
             return
-        allowed = db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == auth.account_id))
+        account_id = account.id
+
+        room = db.get(Room, room_id)
+        if not room:
+            await websocket.close(code=4404)
+            return
+
+        allowed = db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == account_id))
         if not allowed:
             await websocket.close(code=4403)
             return
     finally:
         db.close()
 
-    await ws_hub.connect(room_id, websocket)
+    await ws_hub.connect(room_id, account_id, websocket)
     try:
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    finally:
         ws_hub.disconnect(room_id, websocket)
 
 
 @app.websocket("/ws/events")
 async def event_socket(websocket: WebSocket):
     token = websocket.query_params.get("token", "")
-    if not token:
+    if not token.strip():
         await websocket.close(code=4401)
         return
     db = SessionLocal()
+    account_id: str | None = None
     try:
-        auth = db.scalar(select(AuthSession).where(AuthSession.token == token))
-        if not auth:
+        account = get_account_for_token(db, token)
+        if not account:
             await websocket.close(code=4401)
             return
-        account_id = auth.account_id
+        account_id = account.id
     finally:
         db.close()
 
@@ -659,7 +714,9 @@ async def event_socket(websocket: WebSocket):
     try:
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    finally:
         events_hub.disconnect(account_id, websocket)
 
 
