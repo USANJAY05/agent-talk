@@ -786,6 +786,8 @@
       messages: [],
       roomSearch: '',
       accountSearch: '',
+      leftCollapsed: false,
+      rightCollapsed: false,
       refreshTimer: null,
       roomRefreshPromise: null,
       reconnectTimers: { room: null, events: null }
@@ -1099,6 +1101,7 @@
       $('directTarget').innerHTML = options || '<option value="">No other accounts</option>';
       $('addMemberSelect').innerHTML = options || '<option value="">No members available</option>';
       $('groupMembers').innerHTML = options;
+      applyLayoutState();
     }
 
     function displayRoomName(room) {
@@ -1221,6 +1224,21 @@
       refreshCurrentRoom(true);
     }
 
+    function applyLayoutState() {
+      const app = $('appLayout');
+      const sidebar = $('sidebar');
+      const rightbar = $('rightbar');
+      app.classList.toggle('left-collapsed', state.leftCollapsed && !state.rightCollapsed);
+      app.classList.toggle('right-collapsed', state.rightCollapsed && !state.leftCollapsed);
+      app.classList.toggle('both-collapsed', state.leftCollapsed && state.rightCollapsed);
+      sidebar.classList.toggle('panel-collapsed', state.leftCollapsed && window.innerWidth > 1080);
+      rightbar.classList.toggle('panel-collapsed', state.rightCollapsed && window.innerWidth > 1080);
+      $('expandLeftBtn').classList.toggle('hidden', !state.leftCollapsed || window.innerWidth <= 1080);
+      $('expandRightBtn').classList.toggle('hidden', !state.rightCollapsed || window.innerWidth <= 1080);
+      $('collapseLeftBtn').textContent = state.leftCollapsed ? '▶' : '◀';
+      $('collapseRightBtn').textContent = state.rightCollapsed ? '◀' : '▶';
+    }
+
     function closeMobilePanels(exceptId = '') {
       ['sidebar', 'rightbar'].forEach((id) => {
         if (id !== exceptId) $(id).classList.remove('mobile-open');
@@ -1239,6 +1257,16 @@
       const willOpen = !rightbar.classList.contains('mobile-open');
       closeMobilePanels(willOpen ? 'rightbar' : '');
       rightbar.classList.toggle('mobile-open', willOpen);
+    }
+
+    function toggleLeftCollapse() {
+      state.leftCollapsed = !state.leftCollapsed;
+      applyLayoutState();
+    }
+
+    function toggleRightCollapse() {
+      state.rightCollapsed = !state.rightCollapsed;
+      applyLayoutState();
     }
 
     async function softRefreshFromLifecycle() {
@@ -1272,6 +1300,10 @@
     };
     $('mobileRoomsBtn').onclick = toggleSidebar;
     $('mobileActionsBtn').onclick = toggleRightbar;
+    $('collapseLeftBtn').onclick = toggleLeftCollapse;
+    $('collapseRightBtn').onclick = toggleRightCollapse;
+    $('expandLeftBtn').onclick = toggleLeftCollapse;
+    $('expandRightBtn').onclick = toggleRightCollapse;
     $('roomSearch').addEventListener('input', (event) => {
       state.roomSearch = event.target.value;
       renderSidebars();
@@ -1282,6 +1314,7 @@
     });
     window.addEventListener('resize', () => {
       if (window.innerWidth > 1080) closeMobilePanels();
+      applyLayoutState();
     });
     window.addEventListener('focus', softRefreshFromLifecycle);
     document.addEventListener('visibilitychange', () => {
@@ -1292,6 +1325,7 @@
     });
 
     setAuthMode('signup');
+    applyLayoutState();
     bootstrap();
   </script>
 </body>
