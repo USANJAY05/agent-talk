@@ -50,7 +50,7 @@
     .shell { min-height: 100vh; }
     .center { display: grid; place-items: center; padding: 24px; }
     .stack { display: grid; gap: 14px; }
-    .row { display: grid; gap: 12px; }
+    .row { display: grid; gap: 14px; }
     .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .row3 { display: grid; grid-template-columns: minmax(0, 1fr) 160px 160px; gap: 12px; }
     .muted { color: var(--muted); }
@@ -209,9 +209,19 @@
       min-width: 0;
       overflow: hidden;
     }
-    .sidebar, .rightbar { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); }
-    .panel-scroll { overflow: auto; min-height: 0; }
-    .panel-section { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .sidebar, .rightbar {
+      display: grid;
+      grid-template-rows: auto auto auto minmax(0, 1fr);
+      min-height: 0;
+    }
+    .panel-scroll {
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    .panel-section { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 0; }
     .panel-section:last-child { border-bottom: 0; }
     .brand { display: flex; gap: 14px; align-items: center; }
     .brand-copy h1 { margin: 0; font-size: 1.16rem; letter-spacing: -0.03em; }
@@ -431,7 +441,8 @@
         max-height: calc(100vh - 16px);
       }
       .panel.mobile-open .panel-scroll {
-        overflow: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
       }
     }
@@ -649,7 +660,7 @@
             </div>
           </div>
 
-          <div class="panel-section panel-scroll">
+          <div class="panel-section panel-scroll" id="roomsScrollSection">
             <div class="section-head">
               <div class="section-title">Your rooms</div>
               <div id="roomCountBadge" class="pill-count">0</div>
@@ -752,9 +763,13 @@
       roomId: null,
       members: [],
       socket: null,
+      eventSocket: null,
       messages: [],
       roomSearch: '',
-      accountSearch: ''
+      accountSearch: '',
+      refreshTimer: null,
+      roomRefreshPromise: null,
+      reconnectTimers: { room: null, events: null }
     };
 
     async function api(path, opt = {}) {
@@ -803,10 +818,19 @@
       $('authView').classList.remove('hidden');
     }
 
+    function sortMessages(messages) {
+      return [...messages].sort((a, b) => {
+        const aTime = new Date(a.created_at).getTime();
+        const bTime = new Date(b.created_at).getTime();
+        if (aTime !== bTime) return aTime - bTime;
+        return a.id - b.id;
+      });
+    }
+
     function renderMessages(messages) {
-      state.messages = messages;
-      $('messageCount').textContent = String(messages.length);
-      if (!messages.length) {
+      state.messages = sortMessages(messages);
+      $('messageCount').textContent = String(state.messages.length);
+      if (!state.messages.length) {
         $('messages').innerHTML = `
           <div class="empty-state">
             <div class="empty-card">
@@ -817,7 +841,7 @@
           </div>`;
         return;
       }
-      $('messages').innerHTML = messages.map((m) => `
+      $('messages').innerHTML = state.messages.map((m) => `
         <article class="message ${m.is_owner ? 'owner' : ''}" style="border-left:4px solid ${esc(m.color)}">
           <div class="message-meta">
             <div style="display:flex; gap:12px; align-items:flex-start; min-width:0;">
@@ -859,32 +883,75 @@
         .some((value) => String(value).toLowerCase().includes(q));
     }
 
+    function scheduleReconnect(kind, fn, delay = 1500) {
+      clearTimeout(state.reconnectTimers[kind]);
+      state.reconnectTimers[kind] = setTimeout(fn, delay);
+    }
+
+    async function reloadRoomsAndSidebars() {
+      state.accounts = await api('/api/accounts');
+      state.agents = await api('/api/agents');
+      state.rooms = await api('/api/rooms');
+      if (state.roomId && !state.rooms.some((room) => room.id === state.roomId)) {
+        state.roomId = state.rooms[0]?.id || null;
+      }
+      renderSidebars();
+    }
+
     function connectRoomSocket() {
       if (state.socket) {
         state.socket.close();
         state.socket = null;
       }
       if (!state.roomId || !state.token) return;
+      const currentRoomId = state.roomId;
       const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${scheme}://${location.host}/ws/rooms/${state.roomId}?token=${encodeURIComponent(state.token)}`);
+      const ws = new WebSocket(`${scheme}://${location.host}/ws/rooms/${currentRoomId}?token=${encodeURIComponent(state.token)}`);
       ws.onmessage = async (event) => {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'message.created' || payload.type === 'room.member_added' || payload.type === 'room.created') {
+        if (payload.type === 'message.created' && payload.room_id === state.roomId && payload.message) {
+          const exists = state.messages.some((message) => message.id === payload.message.id);
+          if (!exists) renderMessages([...state.messages, payload.message]);
+          return;
+        }
+        if (payload.room_id === state.roomId || payload.type === 'room.created') {
           await refreshCurrentRoom(false);
-          if (payload.type !== 'message.created') {
-            state.rooms = await api('/api/rooms');
-            renderSidebars();
-          }
         }
       };
       ws.onclose = () => {
-        if (state.roomId && state.token) {
-          setTimeout(() => {
+        if (state.roomId === currentRoomId && state.token) {
+          scheduleReconnect('room', () => {
             if (!state.socket || state.socket === ws) connectRoomSocket();
-          }, 1500);
+          });
         }
       };
       state.socket = ws;
+    }
+
+    function connectEventSocket() {
+      if (state.eventSocket) {
+        state.eventSocket.close();
+        state.eventSocket = null;
+      }
+      if (!state.token) return;
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${scheme}://${location.host}/ws/events?token=${encodeURIComponent(state.token)}`);
+      ws.onmessage = async (event) => {
+        const payload = JSON.parse(event.data);
+        await reloadRoomsAndSidebars();
+        if (!state.roomId && state.rooms.length) state.roomId = state.rooms[0].id;
+        if (payload.room_id === state.roomId || payload.type === 'room.created') {
+          await refreshCurrentRoom(false);
+        }
+      };
+      ws.onclose = () => {
+        if (state.token) {
+          scheduleReconnect('events', () => {
+            if (!state.eventSocket || state.eventSocket === ws) connectEventSocket();
+          });
+        }
+      };
+      state.eventSocket = ws;
     }
 
     async function bootstrap() {
@@ -952,6 +1019,7 @@
       renderSidebars();
       if (!state.roomId && state.rooms.length) state.roomId = state.rooms[0].id;
       await refreshCurrentRoom(true);
+      connectEventSocket();
     }
 
     function renderSidebars() {
@@ -1025,38 +1093,63 @@
     }
 
     async function refreshCurrentRoom(reconnectSocket = true) {
-      if (!state.roomId) {
-        $('roomTitle').textContent = 'No room yet';
-        $('roomSubtitle').textContent = 'Create a room from the left to start chatting.';
-        $('roomTypeBadge').textContent = '—';
-        $('memberCount').textContent = '0';
-        $('messageCount').textContent = '0';
-        $('messages').innerHTML = `
-          <div class="empty-state">
-            <div class="empty-card">
-              <div class="avatar room" style="margin:0 auto">AT</div>
-              <h3>No room selected</h3>
-              <p>Create a group or open a direct chat to see messages here.</p>
-            </div>
-          </div>`;
-        $('members').innerHTML = '<div class="helper-text">Pick a room to see who is in it.</div>';
-        if (state.socket) {
-          state.socket.close();
-          state.socket = null;
-        }
-        return;
+      if (state.roomRefreshPromise) {
+        try { await state.roomRefreshPromise; } catch {}
       }
+      state.roomRefreshPromise = (async () => {
+        if (!state.roomId) {
+          $('roomTitle').textContent = 'No room yet';
+          $('roomSubtitle').textContent = 'Create a room from the left to start chatting.';
+          $('roomTypeBadge').textContent = '—';
+          $('memberCount').textContent = '0';
+          $('messageCount').textContent = '0';
+          $('messages').innerHTML = `
+            <div class="empty-state">
+              <div class="empty-card">
+                <div class="avatar room" style="margin:0 auto">AT</div>
+                <h3>No room selected</h3>
+                <p>Create a group or open a direct chat to see messages here.</p>
+              </div>
+            </div>`;
+          $('members').innerHTML = '<div class="helper-text">Pick a room to see who is in it.</div>';
+          if (state.socket) {
+            state.socket.close();
+            state.socket = null;
+          }
+          return;
+        }
 
-      const room = state.rooms.find((r) => r.id === state.roomId);
-      $('roomTitle').textContent = displayRoomName(room);
-      $('roomSubtitle').textContent = room ? `${roomLabel(room.room_type)} · created by ${room.created_by}` : 'No room selected';
-      $('roomTypeBadge').textContent = room ? room.room_type : '—';
+        const room = state.rooms.find((r) => r.id === state.roomId);
+        $('roomTitle').textContent = displayRoomName(room);
+        $('roomSubtitle').textContent = room ? `${roomLabel(room.room_type)} · created by ${room.created_by}` : 'No room selected';
+        $('roomTypeBadge').textContent = room ? room.room_type : '—';
 
-      const messages = await api(`/api/rooms/${state.roomId}/messages`);
-      state.members = await api(`/api/rooms/${state.roomId}/members`);
-      renderMembers();
-      renderMessages(messages);
-      if (reconnectSocket) connectRoomSocket();
+        try {
+          const [messages, members] = await Promise.all([
+            api(`/api/rooms/${state.roomId}/messages`),
+            api(`/api/rooms/${state.roomId}/members`)
+          ]);
+          state.members = members;
+          renderMembers();
+          renderMessages(messages);
+          if (reconnectSocket) connectRoomSocket();
+        } catch (error) {
+          if (String(error.message || '').includes('Not in this room')) {
+            await reloadRoomsAndSidebars();
+            state.roomId = state.rooms[0]?.id || null;
+            if (state.roomId) {
+              await refreshCurrentRoom(true);
+            }
+          } else {
+            throw error;
+          }
+        }
+      })();
+      try {
+        await state.roomRefreshPromise;
+      } finally {
+        state.roomRefreshPromise = null;
+      }
     }
 
     async function createGroup() {
@@ -1067,8 +1160,7 @@
       });
       $('groupName').value = '';
       state.roomId = room.id;
-      state.rooms = await api('/api/rooms');
-      renderSidebars();
+      await reloadRoomsAndSidebars();
       await refreshCurrentRoom(true);
     }
 
@@ -1080,8 +1172,7 @@
         body: JSON.stringify({ name: '', room_type: 'direct', member_ids: [target] })
       });
       state.roomId = room.id;
-      state.rooms = await api('/api/rooms');
-      renderSidebars();
+      await reloadRoomsAndSidebars();
       await refreshCurrentRoom(true);
     }
 
@@ -1100,6 +1191,7 @@
       const id = $('addMemberSelect').value;
       if (!id || !state.roomId) return;
       await api(`/api/rooms/${state.roomId}/members/${id}`, { method: 'POST' });
+      await reloadRoomsAndSidebars();
       await refreshCurrentRoom(false);
     }
 
@@ -1130,6 +1222,17 @@
       rightbar.classList.toggle('mobile-open', willOpen);
     }
 
+    async function softRefreshFromLifecycle() {
+      if (!state.token) return;
+      clearTimeout(state.refreshTimer);
+      state.refreshTimer = setTimeout(async () => {
+        await reloadRoomsAndSidebars();
+        await refreshCurrentRoom(false);
+        connectEventSocket();
+        connectRoomSocket();
+      }, 250);
+    }
+
     window.selectRoom = selectRoom;
 
     $('showLogin').onclick = () => setAuthMode('login');
@@ -1143,6 +1246,7 @@
     $('refreshBtn').onclick = loadAll;
     $('logoutBtn').onclick = () => {
       if (state.socket) state.socket.close();
+      if (state.eventSocket) state.eventSocket.close();
       localStorage.removeItem('agentTalkToken');
       state.token = '';
       location.reload();
@@ -1159,6 +1263,10 @@
     });
     window.addEventListener('resize', () => {
       if (window.innerWidth > 1080) closeMobilePanels();
+    });
+    window.addEventListener('focus', softRefreshFromLifecycle);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') softRefreshFromLifecycle();
     });
     $('content').addEventListener('keydown', (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') sendMessage();
