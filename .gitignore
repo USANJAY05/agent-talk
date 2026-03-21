@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 agent_talk.sqlite3
+frontend/node_modules/

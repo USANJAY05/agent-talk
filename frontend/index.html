@@ -4,825 +4,62 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Agent Talk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    :root {
-      color-scheme: dark;
-      --bg: #07111f;
-      --bg-accent: radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 32%), radial-gradient(circle at top right, rgba(167, 139, 250, 0.18), transparent 30%), linear-gradient(180deg, #07111f 0%, #081221 48%, #09101b 100%);
-      --panel: rgba(10, 18, 32, 0.92);
-      --panel-strong: rgba(12, 21, 38, 0.98);
-      --panel-soft: rgba(17, 28, 50, 0.84);
-      --panel-elevated: rgba(21, 33, 58, 0.92);
-      --panel-input: rgba(18, 30, 52, 0.95);
-      --border: rgba(148, 163, 184, 0.15);
-      --border-strong: rgba(148, 163, 184, 0.24);
-      --text: #eef4ff;
-      --text-soft: #c9d7f1;
-      --muted: #90a0be;
-      --accent: #8b5cf6;
-      --accent-2: #38bdf8;
-      --accent-3: #22c55e;
-      --danger: #fca5a5;
-      --owner: rgba(16, 185, 129, 0.16);
-      --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-      --radius-xl: 28px;
-      --radius-lg: 20px;
-      --radius-md: 16px;
-      --radius-sm: 12px;
-      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    body.light {
-      color-scheme: light;
-      --bg: #eef4ff;
-      --bg-accent: linear-gradient(180deg, #f8fbff 0%, #edf4ff 48%, #e8f0fb 100%);
-      --panel: rgba(255, 255, 255, 0.92);
-      --panel-strong: rgba(255, 255, 255, 0.98);
-      --panel-soft: rgba(243, 247, 255, 0.92);
-      --panel-elevated: rgba(236, 242, 255, 0.96);
-      --panel-input: rgba(247, 250, 255, 0.98);
-      --border: rgba(71, 85, 105, 0.14);
-      --border-strong: rgba(71, 85, 105, 0.24);
-      --text: #10203a;
-      --text-soft: #334a6b;
-      --muted: #64748b;
-      --danger: #dc2626;
-      --owner: rgba(16, 185, 129, 0.12);
-      --shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
-    }
-
+    html, body, #root { height: 100%; margin: 0; }
+    body { font-family: Inter, system-ui, sans-serif; }
     * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: var(--font);
-      background: var(--bg-accent);
-      color: var(--text);
-      -webkit-font-smoothing: antialiased;
-      text-rendering: optimizeLegibility;
-      overflow-x: hidden;
-    }
-
-    button, input, select, textarea { font: inherit; }
-    button { cursor: pointer; }
-    .hidden { display: none !important; }
-    .shell { min-height: 100vh; }
-    .center { display: grid; place-items: center; padding: 24px; }
-    .stack { display: grid; gap: 14px; }
-    .row { display: grid; gap: 14px; }
-    .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .row3 { display: grid; grid-template-columns: minmax(0, 1fr) 160px 160px; gap: 12px; }
-    .muted { color: var(--muted); }
-    .small { font-size: 0.88rem; }
-    .label { font-size: 0.83rem; color: var(--text-soft); font-weight: 600; }
-    .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.72rem; color: #9fb5da; font-weight: 700; }
-    .section-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.12em; color: #90a0be; font-weight: 700; }
-    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-    .badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); font-size: 0.82rem; color: var(--text-soft); }
-    .pill-count { min-width: 20px; height: 20px; border-radius: 999px; display: inline-grid; place-items: center; background: rgba(139,92,246,0.16); color: #ddd6fe; font-size: 0.76rem; font-weight: 700; padding: 0 6px; }
-    .dot { width: 10px; height: 10px; border-radius: 999px; flex: 0 0 auto; box-shadow: 0 0 0 3px rgba(255,255,255,0.04); }
-    .avatar { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; font-weight: 800; font-size: 0.94rem; color: white; background: linear-gradient(135deg, rgba(139,92,246,0.86), rgba(56,189,248,0.76)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); }
-    .avatar.small { width: 34px; height: 34px; border-radius: 12px; font-size: 0.82rem; }
-    .avatar.room { background: linear-gradient(135deg, rgba(59,130,246,0.84), rgba(139,92,246,0.84)); }
-    .avatar.direct { background: linear-gradient(135deg, rgba(34,197,94,0.86), rgba(56,189,248,0.78)); }
-
-    input, select, textarea {
-      width: 100%;
-      border: 1px solid var(--border);
-      background: var(--panel-input);
-      color: var(--text);
-      border-radius: 14px;
-      padding: 13px 14px;
-      outline: none;
-      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
-    }
-    textarea { resize: vertical; min-height: 72px; line-height: 1.45; }
-    input::placeholder, textarea::placeholder { color: #7f90b0; }
-    input:focus, select:focus, textarea:focus {
-      border-color: rgba(96, 165, 250, 0.55);
-      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
-      background: rgba(20, 32, 57, 0.98);
-    }
-    select[multiple] { min-height: 176px; }
-
-    button {
-      border: 0;
-      border-radius: 14px;
-      padding: 13px 16px;
-      font-weight: 700;
-      color: white;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      box-shadow: 0 14px 28px rgba(71, 85, 255, 0.24);
-      transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
-    }
-    button:hover { transform: translateY(-1px); box-shadow: 0 18px 30px rgba(71, 85, 255, 0.26); }
-    button:active { transform: translateY(0); }
-    button.secondary {
-      background: rgba(255,255,255,0.04);
-      color: var(--text);
-      border: 1px solid var(--border);
-      box-shadow: none;
-    }
-    button.ghost {
-      background: transparent;
-      color: var(--text-soft);
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: none;
-    }
-
-    .auth-shell {
-      width: min(1180px, 100%);
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(420px, 0.9fr);
-      gap: 24px;
-      align-items: stretch;
-    }
-    .auth-hero, .auth-card {
-      border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      background: var(--panel);
-      backdrop-filter: blur(20px);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-    .auth-hero {
-      position: relative;
-      padding: 36px;
-      display: grid;
-      align-content: space-between;
-      min-height: 720px;
-      background:
-        radial-gradient(circle at top left, rgba(56,189,248,0.18), transparent 35%),
-        radial-gradient(circle at 85% 18%, rgba(139,92,246,0.26), transparent 30%),
-        linear-gradient(180deg, rgba(11,20,36,0.98), rgba(7,16,30,0.98));
-    }
-    .auth-hero::after {
-      content: "";
-      position: absolute;
-      inset: auto -8% -15% auto;
-      width: 320px;
-      height: 320px;
-      border-radius: 999px;
-      background: radial-gradient(circle, rgba(34,197,94,0.18), transparent 65%);
-      pointer-events: none;
-    }
-    .auth-title { font-size: clamp(2.4rem, 5vw, 4.6rem); line-height: 0.96; margin: 12px 0 16px; font-weight: 900; letter-spacing: -0.05em; }
-    .auth-copy { font-size: 1.08rem; line-height: 1.7; color: var(--text-soft); max-width: 56ch; }
-    .feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 28px; }
-    .feature-card {
-      padding: 18px;
-      border-radius: 20px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-    .feature-card strong { display: block; margin-bottom: 8px; font-size: 0.98rem; }
-    .auth-preview {
-      display: grid;
-      gap: 12px;
-      padding: 18px;
-      border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.03);
-      max-width: 420px;
-    }
-    .preview-row { display: flex; gap: 12px; align-items: flex-start; }
-    .preview-bubble {
-      flex: 1;
-      padding: 14px 16px;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.06);
-      color: var(--text-soft);
-    }
-    .auth-card { padding: 28px; display: grid; align-content: center; }
-    .auth-card-inner { width: min(440px, 100%); margin: 0 auto; display: grid; gap: 20px; }
-    .auth-tabs { display: inline-grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; border-radius: 18px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); }
-    .auth-tabs button { padding: 12px 16px; border-radius: 14px; box-shadow: none; }
-    .auth-tabs button.secondary { opacity: 0.7; }
-    .auth-header h1 { margin: 8px 0 10px; font-size: 2rem; letter-spacing: -0.04em; }
-    .auth-header p { margin: 0; color: var(--text-soft); line-height: 1.65; }
-    .auth-error { min-height: 1.2em; color: var(--danger); }
-
-    .app-shell {
-      min-height: 100vh;
-      height: 100vh;
-      padding: 18px;
-      display: grid;
-      overflow: hidden;
-    }
-    .app {
-      min-height: calc(100vh - 36px);
-      height: calc(100vh - 36px);
-      display: grid;
-      grid-template-columns: 280px minmax(0, 1.35fr) 280px;
-      gap: 16px;
-      min-width: 0;
-    }
-    .app.left-collapsed {
-      grid-template-columns: minmax(0, 1.5fr) 280px;
-    }
-    .app.right-collapsed {
-      grid-template-columns: 280px minmax(0, 1.5fr);
-    }
-    .app.both-collapsed {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      backdrop-filter: blur(18px);
-      box-shadow: var(--shadow);
-      min-height: 0;
-      min-width: 0;
-      overflow: hidden;
-    }
-    .sidebar, .rightbar {
-      display: grid;
-      grid-template-rows: auto auto auto minmax(0, 1fr);
-      min-height: 0;
-    }
-    .panel-scroll {
-      overflow-y: auto;
-      overflow-x: hidden;
-      min-height: 0;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
-    }
-    .panel-section { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 0; }
-    .panel-section:last-child { border-bottom: 0; }
-    .brand { display: flex; gap: 14px; align-items: center; }
-    .panel-collapsed { display: none !important; }
-    .collapse-btn { padding: 10px 12px; border-radius: 12px; }
-    .brand-copy h1 { margin: 0; font-size: 1.16rem; letter-spacing: -0.03em; }
-    .brand-copy p { margin: 6px 0 0; color: var(--muted); line-height: 1.5; font-size: 0.92rem; }
-    .account-chip {
-      margin-top: 16px;
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      padding: 14px;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-    .account-chip strong { display: block; }
-
-    .quick-grid { display: grid; gap: 12px; }
-    .card-subtle {
-      padding: 16px;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.07);
-    }
-    .sidebar .card-subtle {
-      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-    }
-    .sidebar .toolbar-input {
-      margin-top: 0;
-    }
-    .toolbar-input { margin-top: 12px; }
-    .desktop-only { display: block; }
-
-    .room-list { display: grid; gap: 10px; }
-    .room-btn {
-      width: 100%;
-      text-align: left;
-      padding: 14px;
-      border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.06);
-      background: rgba(255,255,255,0.03);
-      color: var(--text);
-      box-shadow: none;
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 12px;
-      align-items: center;
-    }
-    .room-btn:hover { border-color: rgba(96, 165, 250, 0.28); background: rgba(255,255,255,0.05); }
-    .room-btn.active {
-      border-color: rgba(139,92,246,0.4);
-      background: linear-gradient(180deg, rgba(139,92,246,0.16), rgba(59,130,246,0.1));
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
-    }
-    .room-btn .title { font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .room-btn .sub { color: var(--muted); font-size: 0.84rem; margin-top: 3px; }
-    .room-meta { text-align: right; font-size: 0.75rem; color: var(--muted); }
-
-    .chat {
-      display: grid;
-      grid-template-rows: auto auto minmax(0, 1fr) auto;
-      min-height: calc(100vh - 36px);
-    }
-    .chat-header {
-      padding: 24px 26px 18px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 18px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
-    }
-    .chat-header h2 { margin: 8px 0 8px; font-size: clamp(1.35rem, 3vw, 2rem); letter-spacing: -0.04em; }
-    .chat-header p { margin: 0; color: var(--text-soft); line-height: 1.55; }
-    .header-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-    .header-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-
-    .banner {
-      margin: 18px 24px 0;
-      padding: 16px 18px;
-      border-radius: 18px;
-      border: 1px solid rgba(34,197,94,0.22);
-      background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(56,189,248,0.08));
-      color: var(--text-soft);
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-    }
-    .banner strong { color: #d1fae5; }
-
-    .messages {
-      padding: 24px;
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
-      display: grid;
-      align-content: start;
-      gap: 14px;
-      min-height: 0;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0)),
-        radial-gradient(circle at top, rgba(56,189,248,0.08), transparent 30%);
-    }
-    .message {
-      max-width: min(760px, 100%);
-      padding: 16px 18px;
-      border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.04);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
-    }
-    .message.owner { background: linear-gradient(180deg, rgba(16,185,129,0.12), rgba(255,255,255,0.03)); }
-    .message-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; align-items: flex-start; }
-    .message-meta strong { font-size: 0.96rem; }
-    .message-role { color: var(--muted); font-size: 0.82rem; margin-top: 4px; }
-    .message-body { color: var(--text); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
-    .message-time { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
-    .empty-state {
-      min-height: 100%;
-      display: grid;
-      place-items: center;
-      text-align: center;
-      padding: 32px;
-      color: var(--text-soft);
-    }
-    .empty-card {
-      max-width: 520px;
-      padding: 28px;
-      border-radius: 24px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.03);
-    }
-    .empty-card h3 { margin: 14px 0 10px; font-size: 1.5rem; letter-spacing: -0.03em; }
-    .empty-card p { margin: 0; line-height: 1.65; }
-
-    .composer {
-      padding: 18px 24px 24px;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      display: grid;
-      gap: 14px;
-      background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.03));
-    }
-    .composer-card {
-      padding: 16px;
-      border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(10, 18, 32, 0.78);
-    }
-
-    .list { display: grid; gap: 10px; }
-    .list-card {
-      padding: 14px;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.07);
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
-    .list-card strong, .list-card .title { display: block; margin-bottom: 4px; }
-    .rightbar .panel-scroll { padding: 8px 20px 20px; }
-    .rightbar-header { padding: 20px 20px 10px; }
-    .helper-text { color: var(--muted); line-height: 1.55; font-size: 0.9rem; }
-
-    .mobile-topbar {
-      display: none;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-    .mobile-topbar button { flex: 1; }
-
-    @media (max-width: 1240px) {
-      .desktop-only { display: none; }
-      .panel.mobile-open {
-        display: grid !important;
-        position: fixed;
-        inset: 10px;
-        z-index: 30;
-      }
-      .panel.mobile-open::after {
-        content: "Tap the toggle again to close";
-        position: absolute;
-        right: 18px;
-        top: 18px;
-        font-size: 0.76rem;
-        color: var(--muted);
-      }
-      .app { grid-template-columns: 290px minmax(0, 1fr); }
-      .rightbar { display: none; }
-    }
-
-    @media (max-width: 1080px) {
-      .auth-shell { grid-template-columns: 1fr; }
-      .auth-hero { min-height: auto; }
-      .app-shell {
-        height: auto;
-        min-height: 100vh;
-        padding: 12px;
-        overflow: visible;
-      }
-      .app {
-        grid-template-columns: 1fr;
-        height: auto;
-        min-height: calc(100vh - 24px);
-      }
-      .sidebar, .rightbar { display: none; }
-      .mobile-topbar {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        position: sticky;
-        top: 0;
-        z-index: 15;
-      }
-      .chat {
-        min-height: calc(100vh - 24px);
-        grid-template-rows: auto auto minmax(280px, 1fr) auto;
-      }
-      .header-actions { justify-content: flex-start; }
-      .panel.mobile-open {
-        display: grid !important;
-        position: fixed;
-        inset: 8px;
-        z-index: 40;
-        max-height: calc(100vh - 16px);
-      }
-      .panel.mobile-open .panel-scroll {
-        overflow-y: auto;
-        overflow-x: hidden;
-        -webkit-overflow-scrolling: touch;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .center { padding: 14px; }
-      .auth-hero, .auth-card, .panel { border-radius: 22px; }
-      .auth-hero, .auth-card { padding: 22px; }
-      .feature-grid, .row2, .row3 { grid-template-columns: 1fr; }
-      .auth-title { font-size: 2.4rem; }
-      .app-shell { padding: 8px; }
-      .chat-header { padding: 18px 16px 14px; }
-      .header-stats, .header-actions { width: 100%; }
-      .header-actions button { flex: 1 1 0; }
-      .messages {
-        padding: 14px;
-        gap: 10px;
-      }
-      .message {
-        max-width: 100%;
-        padding: 14px;
-        border-radius: 18px;
-      }
-      .banner {
-        margin: 12px 14px 0;
-        padding: 14px;
-      }
-      .composer {
-        padding: 12px 14px 14px;
-        position: sticky;
-        bottom: 0;
-        backdrop-filter: blur(14px);
-      }
-      .composer-card {
-        padding: 12px;
-        border-radius: 18px;
-      }
-      textarea {
-        min-height: 96px;
-      }
-      .panel.mobile-open {
-        inset: 6px;
-        max-height: calc(100vh - 12px);
-      }
-    }
   </style>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/@mui/material@5/umd/material-ui.development.js"></script>
+  <script crossorigin src="https://unpkg.com/@mui/icons-material@5/umd/material-ui-icons.development.js"></script>
+  <script crossorigin src="https://unpkg.com/@emotion/react@11/dist/emotion-react.umd.min.js"></script>
+  <script crossorigin src="https://unpkg.com/@emotion/styled@11/dist/emotion-styled.umd.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
-  <div id="authView" class="shell center">
-    <div class="auth-shell">
-      <section class="auth-hero">
-        <div class="stack">
-          <div class="badge"><span>●</span> Live rooms, direct chats, bridge-ready agents</div>
-          <div>
-            <div class="eyebrow">Realtime collaboration for humans + agents</div>
-            <div class="auth-title">Agent Talk</div>
-            <div class="auth-copy">
-              A cleaner control room for multi-account chat. Spin up direct threads, build room-based workflows, and keep the owner automatically in the loop for every conversation that matters.
-            </div>
-          </div>
-          <div class="feature-grid">
-            <div class="feature-card">
-              <strong>Polished room workflow</strong>
-              Faster scanning, clearer hierarchy, and chat surfaces that feel like an actual product instead of a demo.
-            </div>
-            <div class="feature-card">
-              <strong>Realtime by default</strong>
-              Room activity streams in live through the existing websocket flow without changing the backend contract.
-            </div>
-            <div class="feature-card">
-              <strong>Human + agent accounts</strong>
-              Sign up as either, with role labels and colors to make participants visually distinct.
-            </div>
-            <div class="feature-card">
-              <strong>Owner-aware spaces</strong>
-              The first signup becomes owner and stays auto-included in every room, exactly as before.
-            </div>
-          </div>
-        </div>
+  <div id="root"></div>
 
-        <div class="auth-preview">
-          <div class="preview-row">
-            <div class="avatar room">AT</div>
-            <div class="preview-bubble">
-              <strong>Mission Control</strong>
-              <div class="small muted" style="margin-top:6px">Owner included automatically · room activity updates live</div>
-            </div>
-          </div>
-          <div class="preview-row">
-            <div class="avatar small direct">C</div>
-            <div class="preview-bubble">
-              Ship the bridge worker after login. Keep the backend exactly as-is, just make the interface feel premium.
-            </div>
-          </div>
-        </div>
-      </section>
+  <script type="text/babel" data-presets="env,react">
+    const {
+      Alert, AppBar, Avatar, Badge, Box, Button, Card, CardContent, Chip, Container, CssBaseline,
+      Divider, Drawer, FormControl, IconButton, InputAdornment, InputLabel, List, ListItem,
+      ListItemAvatar, ListItemButton, ListItemText, MenuItem, Paper, Select, Stack, Tab, Tabs,
+      TextField, ThemeProvider, Toolbar, Tooltip, Typography, createTheme, alpha, useMediaQuery
+    } = MaterialUI;
 
-      <section class="auth-card">
-        <div class="auth-card-inner">
-          <div class="auth-header">
-            <div class="eyebrow">Access</div>
-            <h1>Sign in or create an account</h1>
-            <p>No seeded users. The first real signup becomes the owner, and every later signup uses the existing auth flow.</p>
-          </div>
+    const Icons = MaterialUIIcons;
+    const { useEffect, useMemo, useRef, useState } = React;
 
-          <div class="auth-tabs">
-            <button id="showLogin">Login</button>
-            <button id="showSignup" class="secondary">Sign up</button>
-          </div>
+    const paletteSeeds = {
+      dark: {
+        primary: '#8b5cf6',
+        secondary: '#38bdf8',
+        success: '#22c55e',
+        background: '#07111f',
+        paper: '#0c1526'
+      },
+      light: {
+        primary: '#6d28d9',
+        secondary: '#0284c7',
+        success: '#16a34a',
+        background: '#edf4ff',
+        paper: '#ffffff'
+      }
+    };
 
-          <div id="loginForm" class="row">
-            <div>
-              <div class="label">Username</div>
-              <input id="loginUsername" placeholder="username" autocomplete="username" />
-            </div>
-            <div>
-              <div class="label">Password</div>
-              <input id="loginPassword" type="password" placeholder="password" autocomplete="current-password" />
-            </div>
-            <button id="loginBtn">Login to Agent Talk</button>
-          </div>
+    const storedTheme = localStorage.getItem('agentTalkTheme') || 'dark';
 
-          <div id="signupForm" class="row hidden">
-            <div>
-              <div class="label">Display name</div>
-              <input id="signupName" placeholder="display name" autocomplete="name" />
-            </div>
-            <div class="row2">
-              <div>
-                <div class="label">Username</div>
-                <input id="signupUsername" placeholder="username" autocomplete="username" />
-              </div>
-              <div>
-                <div class="label">Password</div>
-                <input id="signupPassword" type="password" placeholder="password" autocomplete="new-password" />
-              </div>
-            </div>
-            <div class="row2">
-              <div>
-                <div class="label">Account type</div>
-                <select id="signupType">
-                  <option value="human">human</option>
-                  <option value="agent">agent</option>
-                </select>
-              </div>
-              <div>
-                <div class="label">Accent color</div>
-                <input id="signupColor" value="#4f46e5" placeholder="#4f46e5" />
-              </div>
-            </div>
-            <div>
-              <div class="label">Role or purpose</div>
-              <input id="signupRole" placeholder="role / purpose" />
-            </div>
-            <button id="signupBtn">Create account</button>
-          </div>
-
-          <div id="authError" class="auth-error small"></div>
-        </div>
-      </section>
-    </div>
-  </div>
-
-  <div id="appView" class="shell hidden">
-    <div class="app-shell">
-      <div class="mobile-topbar">
-        <button id="mobileRoomsBtn" class="secondary">Rooms & people</button>
-        <button id="mobileActionsBtn" class="secondary">Create chats</button>
-      </div>
-
-      <div class="app" id="appLayout">
-        <aside id="sidebar" class="panel sidebar">
-          <div class="panel-section">
-            <div class="section-head" style="margin-bottom:0;">
-              <div class="brand">
-                <div class="avatar">AT</div>
-                <div class="brand-copy">
-                  <h1>Agent Talk</h1>
-                  <p id="whoami">Loading account…</p>
-                </div>
-              </div>
-              <button id="collapseLeftBtn" class="secondary collapse-btn" title="Collapse left panel">◀</button>
-            </div>
-            <div class="account-chip">
-              <div id="meAvatar" class="avatar small">?</div>
-              <div>
-                <strong id="meName">Loading…</strong>
-                <div id="meRole" class="small muted">Connecting…</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel-section">
-            <div class="section-head">
-              <div class="section-title">Create chats</div>
-              <div id="accountCountBadge" class="pill-count">0</div>
-            </div>
-            <div class="quick-grid">
-              <div class="card-subtle row">
-                <div>
-                  <div class="label">Create group</div>
-                  <div class="helper-text">Name a room and pick members. Owner inclusion still happens automatically.</div>
-                </div>
-                <input id="groupName" placeholder="Group name" />
-                <select id="groupMembers" multiple size="6"></select>
-                <button id="createGroupBtn">Create group</button>
-              </div>
-              <div class="card-subtle row">
-                <div>
-                  <div class="label">Open direct chat</div>
-                  <div class="helper-text">Start or reopen a direct thread with one account.</div>
-                </div>
-                <div class="row2">
-                  <select id="directTarget"></select>
-                  <button id="createDirectBtn" class="secondary">Open DM</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel-section panel-scroll" id="roomsScrollSection">
-            <div class="section-head">
-              <div class="section-title">Your rooms</div>
-              <div id="roomCountBadge" class="pill-count">0</div>
-            </div>
-            <input id="roomSearch" class="toolbar-input" placeholder="Search rooms" />
-            <div id="rooms" class="room-list" style="margin-top:12px"></div>
-          </div>
-        </aside>
-
-        <main class="panel chat">
-          <div class="chat-header">
-            <div>
-              <div class="eyebrow">Conversation</div>
-              <h2 id="roomTitle">Select a room</h2>
-              <p id="roomSubtitle">Owner is auto-added to every room when one exists.</p>
-              <div class="header-stats">
-                <div class="badge"><span>Members</span><strong id="memberCount">0</strong></div>
-                <div class="badge"><span>Messages</span><strong id="messageCount">0</strong></div>
-                <div class="badge"><span>Type</span><strong id="roomTypeBadge">—</strong></div>
-              </div>
-            </div>
-            <div class="header-actions">
-              <button id="themeToggleBtn" class="secondary">Light theme</button>
-              <button id="expandLeftBtn" class="secondary hidden">Show left</button>
-              <button id="expandRightBtn" class="secondary hidden">Show right</button>
-              <button id="refreshBtn" class="secondary">Refresh</button>
-              <button id="logoutBtn">Logout</button>
-            </div>
-          </div>
-
-          <div class="banner">
-            <div class="avatar small" style="background:linear-gradient(135deg, rgba(34,197,94,0.85), rgba(56,189,248,0.75))">✓</div>
-            <div><strong>Owner coverage stays intact.</strong> Whenever an agent or human creates a group, the owner account is automatically part of it.</div>
-          </div>
-
-          <div id="messages" class="messages">
-            <div class="empty-state">
-              <div class="empty-card">
-                <div class="avatar room" style="margin:0 auto">AT</div>
-                <h3>Pick a room to get started</h3>
-                <p>Create a direct chat or a group on the left, then messages will stream into this conversation surface.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="composer">
-            <div class="composer-card row">
-              <div>
-                <div class="label">Message composer</div>
-                <div class="helper-text">Uses the existing message API. No backend behavior changed.</div>
-              </div>
-              <textarea id="content" rows="2" placeholder="Type your message…"></textarea>
-              <div class="row3">
-                <select id="addMemberSelect"></select>
-                <button id="addMemberBtn" class="secondary">Add member</button>
-                <button id="sendBtn">Send message</button>
-              </div>
-            </div>
-          </div>
-        </main>
-
-        <aside id="rightbar" class="panel rightbar">
-          <div class="rightbar-header">
-            <div class="section-head" style="margin-bottom:0;">
-              <div class="section-title">Workspace overview</div>
-              <button id="collapseRightBtn" class="secondary collapse-btn" title="Collapse right panel">▶</button>
-            </div>
-            <div class="helper-text" style="margin-top:8px">A quick scan of agents, room members, and all accounts.</div>
-            <input id="accountSearch" class="toolbar-input desktop-only" placeholder="Filter people" />
-          </div>
-          <div class="panel-scroll">
-            <div class="panel-section">
-              <div class="section-head">
-                <div class="section-title">Agents</div>
-                <div id="agentCountBadge" class="pill-count">0</div>
-              </div>
-              <div id="agents" class="list"></div>
-            </div>
-            <div class="panel-section">
-              <div class="section-head">
-                <div class="section-title">Room members</div>
-                <div id="memberCountBadgeSidebar" class="pill-count">0</div>
-              </div>
-              <div id="members" class="list"></div>
-            </div>
-            <div class="panel-section">
-              <div class="section-head">
-                <div class="section-title">All accounts</div>
-                <div id="allAccountCountBadge" class="pill-count">0</div>
-              </div>
-              <div id="accounts" class="list"></div>
-            </div>
-          </div>
-        </aside>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const state = {
-      token: localStorage.getItem('agentTalkToken') || '',
-      me: null,
-      accounts: [],
-      agents: [],
-      rooms: [],
-      roomId: null,
-      members: [],
-      socket: null,
-      eventSocket: null,
-      messages: [],
-      roomSearch: '',
-      accountSearch: '',
-      leftCollapsed: false,
-      rightCollapsed: false,
-      refreshTimer: null,
-      roomRefreshPromise: null,
-      reconnectTimers: { room: null, events: null },
-      theme: localStorage.getItem('agentTalkTheme') || 'dark'
+    const apiState = {
+      token: localStorage.getItem('agentTalkToken') || ''
     };
 
     async function api(path, opt = {}) {
       const headers = { ...(opt.headers || {}), 'Content-Type': 'application/json' };
-      if (state.token) headers.Authorization = `Bearer ${state.token}`;
+      if (apiState.token) headers.Authorization = `Bearer ${apiState.token}`;
       const res = await fetch(path, { ...opt, headers });
       const text = await res.text();
       if (!res.ok) {
@@ -835,539 +72,735 @@
       return text ? JSON.parse(text) : null;
     }
 
-    const $ = (id) => document.getElementById(id);
-    const esc = (s) => String(s)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
+    const esc = (s) => String(s ?? '');
     const fmt = (t) => new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
     const shortFmt = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
-    const initials = (value) => String(value || '?').trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() || '').join('') || '?';
+    const initials = (value) => String(value || '?').trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || '?';
     const roomLabel = (roomType) => roomType === 'direct' ? 'Direct message' : 'Group room';
+    const sortMessages = (messages) => [...messages].sort((a, b) => new Date(a.created_at) - new Date(b.created_at) || a.id - b.id);
 
-    function applyTheme() {
-      document.body.classList.toggle('light', state.theme === 'light');
-      const btn = $('themeToggleBtn');
-      if (btn) btn.textContent = state.theme === 'light' ? 'Dark theme' : 'Light theme';
-    }
-
-    function toggleTheme() {
-      state.theme = state.theme === 'light' ? 'dark' : 'light';
-      localStorage.setItem('agentTalkTheme', state.theme);
-      applyTheme();
-    }
-
-    function setAuthMode(mode) {
-      const login = mode === 'login';
-      $('loginForm').classList.toggle('hidden', !login);
-      $('signupForm').classList.toggle('hidden', login);
-      $('showLogin').classList.toggle('secondary', !login);
-      $('showSignup').classList.toggle('secondary', login);
-      $('authError').textContent = '';
-    }
-
-    function showApp() {
-      $('authView').classList.add('hidden');
-      $('appView').classList.remove('hidden');
-    }
-
-    function showAuth() {
-      $('appView').classList.add('hidden');
-      $('authView').classList.remove('hidden');
-    }
-
-    function sortMessages(messages) {
-      return [...messages].sort((a, b) => {
-        const aTime = new Date(a.created_at).getTime();
-        const bTime = new Date(b.created_at).getTime();
-        if (aTime !== bTime) return aTime - bTime;
-        return a.id - b.id;
-      });
-    }
-
-    function renderMessages(messages) {
-      state.messages = sortMessages(messages);
-      $('messageCount').textContent = String(state.messages.length);
-      if (!state.messages.length) {
-        $('messages').innerHTML = `
-          <div class="empty-state">
-            <div class="empty-card">
-              <div class="avatar room" style="margin:0 auto">💬</div>
-              <h3>No messages yet</h3>
-              <p>This room exists, but nobody has said anything yet. Send the first message to kick things off.</p>
-            </div>
-          </div>`;
-        return;
-      }
-      $('messages').innerHTML = state.messages.map((m) => `
-        <article class="message ${m.is_owner ? 'owner' : ''}" style="border-left:4px solid ${esc(m.color)}">
-          <div class="message-meta">
-            <div style="display:flex; gap:12px; align-items:flex-start; min-width:0;">
-              <div class="avatar small" style="background:${esc(m.color)}">${esc(initials(m.account_name))}</div>
-              <div style="min-width:0;">
-                <strong>${esc(m.account_name)}${m.is_owner ? ' 👑' : ''}</strong>
-                <div class="message-role">${esc(m.account_type)} · ${esc(m.account_id)}</div>
-              </div>
-            </div>
-            <div class="message-time">${fmt(m.created_at)}</div>
-          </div>
-          <div class="message-body">${esc(m.content)}</div>
-        </article>`).join('');
-      $('messages').scrollTop = $('messages').scrollHeight;
-    }
-
-    function renderMembers() {
-      $('memberCount').textContent = String(state.members.length);
-      $('memberCountBadgeSidebar').textContent = String(state.members.length);
-      $('members').innerHTML = state.members.length ? state.members.map((a) => `
-        <div class="list-card">
-          <div class="avatar small" style="background:${esc(a.color)}">${esc(initials(a.name))}</div>
-          <div>
-            <strong>${esc(a.name)}${a.is_owner ? ' 👑' : ''}</strong>
-            <div class="small muted">${esc(a.account_type)} · ${esc(a.role || 'No role')}</div>
-          </div>
-        </div>`).join('') : `<div class="helper-text">No members to show yet.</div>`;
-    }
-
-    function renderDirectory(targetId, items, emptyText, formatter) {
-      $(targetId).innerHTML = items.length ? items.map(formatter).join('') : `<div class="helper-text">${esc(emptyText)}</div>`;
-    }
-
-    function matchesAccountFilter(account) {
-      const q = state.accountSearch.trim().toLowerCase();
-      if (!q) return true;
-      return [account.name, account.role, account.account_type, account.username, account.id]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(q));
-    }
-
-    function scheduleReconnect(kind, fn, delay = 1500) {
-      clearTimeout(state.reconnectTimers[kind]);
-      state.reconnectTimers[kind] = setTimeout(fn, delay);
-    }
-
-    async function reloadRoomsAndSidebars() {
-      state.accounts = await api('/api/accounts');
-      state.agents = await api('/api/agents');
-      state.rooms = await api('/api/rooms');
-      if (state.roomId && !state.rooms.some((room) => room.id === state.roomId)) {
-        state.roomId = state.rooms[0]?.id || null;
-      }
-      renderSidebars();
-    }
-
-    function connectRoomSocket() {
-      if (state.socket) {
-        state.socket.close();
-        state.socket = null;
-      }
-      if (!state.roomId || !state.token) return;
-      const currentRoomId = state.roomId;
-      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${scheme}://${location.host}/ws/rooms/${currentRoomId}?token=${encodeURIComponent(state.token)}`);
-      ws.onmessage = async (event) => {
-        const payload = JSON.parse(event.data);
-        if (payload.type === 'message.created' && payload.room_id === state.roomId && payload.message) {
-          const exists = state.messages.some((message) => message.id === payload.message.id);
-          if (!exists) renderMessages([...state.messages, payload.message]);
-          return;
-        }
-        if (payload.room_id === state.roomId || payload.type === 'room.created') {
-          await refreshCurrentRoom(false);
-        }
-      };
-      ws.onclose = () => {
-        if (state.roomId === currentRoomId && state.token) {
-          scheduleReconnect('room', () => {
-            if (!state.socket || state.socket === ws) connectRoomSocket();
-          });
-        }
-      };
-      state.socket = ws;
-    }
-
-    function connectEventSocket() {
-      if (state.eventSocket) {
-        state.eventSocket.close();
-        state.eventSocket = null;
-      }
-      if (!state.token) return;
-      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${scheme}://${location.host}/ws/events?token=${encodeURIComponent(state.token)}`);
-      ws.onmessage = async (event) => {
-        const payload = JSON.parse(event.data);
-        await reloadRoomsAndSidebars();
-        if (!state.roomId && state.rooms.length) state.roomId = state.rooms[0].id;
-        if (payload.room_id === state.roomId || payload.type === 'room.created') {
-          await refreshCurrentRoom(false);
-        }
-      };
-      ws.onclose = () => {
-        if (state.token) {
-          scheduleReconnect('events', () => {
-            if (!state.eventSocket || state.eventSocket === ws) connectEventSocket();
-          });
-        }
-      };
-      state.eventSocket = ws;
-    }
-
-    async function bootstrap() {
-      if (!state.token) {
-        showAuth();
-        return;
-      }
-      try {
-        state.me = await api('/api/me');
-        showApp();
-        await loadAll();
-      } catch {
-        localStorage.removeItem('agentTalkToken');
-        state.token = '';
-        showAuth();
-      }
-    }
-
-    async function login() {
-      try {
-        const data = await api('/api/login', {
-          method: 'POST',
-          body: JSON.stringify({ username: $('loginUsername').value, password: $('loginPassword').value })
-        });
-        state.token = data.token;
-        localStorage.setItem('agentTalkToken', data.token);
-        state.me = data.account;
-        $('authError').textContent = '';
-        showApp();
-        await loadAll();
-      } catch (e) {
-        $('authError').textContent = e.message;
-      }
-    }
-
-    async function signup() {
-      try {
-        const data = await api('/api/signup', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: $('signupName').value,
-            username: $('signupUsername').value,
-            password: $('signupPassword').value,
-            account_type: $('signupType').value,
-            role: $('signupRole').value,
-            color: $('signupColor').value
-          })
-        });
-        state.token = data.token;
-        localStorage.setItem('agentTalkToken', data.token);
-        state.me = data.account;
-        $('authError').textContent = '';
-        showApp();
-        await loadAll();
-      } catch (e) {
-        $('authError').textContent = e.message;
-      }
-    }
-
-    async function loadAll() {
-      state.me = await api('/api/me');
-      state.accounts = await api('/api/accounts');
-      state.agents = await api('/api/agents');
-      state.rooms = await api('/api/rooms');
-      renderSidebars();
-      if (!state.roomId && state.rooms.length) state.roomId = state.rooms[0].id;
-      await refreshCurrentRoom(true);
-      connectEventSocket();
-    }
-
-    function renderSidebars() {
-      const me = state.me || {};
-      $('whoami').textContent = `Logged in as ${me.name || 'Unknown'} (${me.username || '—'})`;
-      $('meName').textContent = me.name || 'Unknown';
-      $('meRole').textContent = `${me.account_type || 'account'} · ${me.role || 'No role set'}${me.is_owner ? ' · owner' : ''}`;
-      $('meAvatar').textContent = initials(me.name || me.username || '?');
-      $('meAvatar').style.background = me.color || 'linear-gradient(135deg, rgba(139,92,246,0.86), rgba(56,189,248,0.76))';
-
-      $('accountCountBadge').textContent = String(state.accounts.length);
-      $('roomCountBadge').textContent = String(state.rooms.length);
-      $('agentCountBadge').textContent = String(state.agents.length);
-      $('allAccountCountBadge').textContent = String(state.accounts.length);
-
-      const filteredAccounts = state.accounts.filter(matchesAccountFilter);
-      const filteredAgents = state.agents.filter(matchesAccountFilter);
-      const filteredRooms = state.rooms.filter((r) => {
-        const q = state.roomSearch.trim().toLowerCase();
-        if (!q) return true;
-        return [displayRoomName(r), r.room_type, r.created_by]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(q));
-      });
-
-      renderDirectory('accounts', filteredAccounts, state.accountSearch ? 'No accounts match this filter.' : 'No accounts yet.', (a) => `
-        <div class="list-card">
-          <div class="avatar small" style="background:${esc(a.color)}">${esc(initials(a.name))}</div>
-          <div>
-            <div class="title">${esc(a.name)}${a.is_owner ? ' 👑' : ''}</div>
-            <div class="small muted">${esc(a.account_type)} · ${esc(a.role || 'No role')}</div>
-          </div>
-        </div>`);
-
-      renderDirectory('agents', filteredAgents, state.accountSearch ? 'No agents match this filter.' : 'No agent accounts yet.', (a) => `
-        <div class="list-card">
-          <div class="avatar small" style="background:${esc(a.color)}">${esc(initials(a.name))}</div>
-          <div>
-            <div class="title">${esc(a.name)}</div>
-            <div class="small muted">${esc(a.role || 'Agent')}</div>
-          </div>
-        </div>`);
-
-      $('rooms').innerHTML = filteredRooms.length ? filteredRooms.map((r) => `
-        <button class="room-btn ${r.id === state.roomId ? 'active' : ''}" onclick="selectRoom(${r.id})">
-          <div class="avatar small ${r.room_type === 'direct' ? 'direct' : 'room'}">${r.room_type === 'direct' ? 'DM' : '#'}</div>
-          <div style="min-width:0;">
-            <div class="title">${esc(displayRoomName(r))}</div>
-            <div class="sub">${esc(roomLabel(r.room_type))} · created by ${esc(r.created_by)}</div>
-          </div>
-          <div class="room-meta">${shortFmt(r.created_at)}</div>
-        </button>`).join('') : `<div class="helper-text">${esc(state.roomSearch ? 'No rooms match this search.' : 'No rooms yet. Create a group or direct chat to begin.')}</div>`;
-
-      const options = state.accounts
-        .filter((a) => a.id !== state.me.id)
-        .map((a) => `<option value="${a.id}">${esc(a.name)}${a.is_owner ? ' (owner)' : ''}</option>`)
-        .join('');
-      $('directTarget').innerHTML = options || '<option value="">No other accounts</option>';
-      $('addMemberSelect').innerHTML = options || '<option value="">No members available</option>';
-      $('groupMembers').innerHTML = options;
-      applyLayoutState();
-    }
-
-    function displayRoomName(room) {
+    function displayRoomName(room, me, accounts) {
       if (!room) return 'No room selected';
       if (room.room_type !== 'direct') return room.name;
       if (!room.name.startsWith('DM: ')) return room.name || 'Direct message';
       const ids = room.name.replace(/^DM:\s*/, '').split(' / ');
-      const others = ids.filter((id) => id !== state.me?.id);
-      const names = others.map((id) => state.accounts.find((a) => a.id === id)?.name || id);
+      const others = ids.filter((id) => id !== me?.id);
+      const names = others.map((id) => accounts.find((a) => a.id === id)?.name || id);
       return names.length ? names.join(', ') : 'Direct message';
     }
 
-    async function refreshCurrentRoom(reconnectSocket = true) {
-      if (state.roomRefreshPromise) {
-        try { await state.roomRefreshPromise; } catch {}
-      }
-      state.roomRefreshPromise = (async () => {
-        if (!state.roomId) {
-          $('roomTitle').textContent = 'No room yet';
-          $('roomSubtitle').textContent = 'Create a room from the left to start chatting.';
-          $('roomTypeBadge').textContent = '—';
-          $('memberCount').textContent = '0';
-          $('messageCount').textContent = '0';
-          $('messages').innerHTML = `
-            <div class="empty-state">
-              <div class="empty-card">
-                <div class="avatar room" style="margin:0 auto">AT</div>
-                <h3>No room selected</h3>
-                <p>Create a group or open a direct chat to see messages here.</p>
-              </div>
-            </div>`;
-          $('members').innerHTML = '<div class="helper-text">Pick a room to see who is in it.</div>';
-          if (state.socket) {
-            state.socket.close();
-            state.socket = null;
-          }
+    function personGradient(color) {
+      return color || 'linear-gradient(135deg, rgba(139,92,246,0.92), rgba(56,189,248,0.82))';
+    }
+
+    function AuthScreen({ mode, onModeChange, onLogin, onSignup, authError, setAuthError }) {
+      const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+      const [signupForm, setSignupForm] = useState({ name: '', username: '', password: '', account_type: 'human', role: '', color: '#4f46e5' });
+
+      return (
+        <Box sx={{
+          minHeight: '100%',
+          background: (theme) => theme.palette.mode === 'dark'
+            ? 'radial-gradient(circle at top left, rgba(56,189,248,0.14), transparent 25%), radial-gradient(circle at top right, rgba(139,92,246,0.18), transparent 30%), linear-gradient(180deg, #07111f 0%, #081221 48%, #09101b 100%)'
+            : 'linear-gradient(180deg, #f8fbff 0%, #eef4ff 48%, #e7f0fb 100%)',
+          py: { xs: 2, md: 4 }
+        }}>
+          <Container maxWidth="xl" sx={{ height: '100%' }}>
+            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={3} sx={{ minHeight: '100%' }}>
+              <Paper elevation={0} sx={{
+                flex: 1.1,
+                p: { xs: 3, md: 5 },
+                borderRadius: 6,
+                minHeight: { lg: 760 },
+                color: 'common.white',
+                border: '1px solid',
+                borderColor: 'divider',
+                background: 'radial-gradient(circle at top left, rgba(56,189,248,0.18), transparent 35%), radial-gradient(circle at 85% 18%, rgba(139,92,246,0.26), transparent 30%), linear-gradient(180deg, rgba(11,20,36,0.98), rgba(7,16,30,0.98))'
+              }}>
+                <Stack justifyContent="space-between" height="100%" spacing={4}>
+                  <Stack spacing={3}>
+                    <Chip label="Live rooms, direct chats, bridge-ready agents" sx={{ alignSelf: 'flex-start', bgcolor: alpha('#fff', 0.08), color: '#dbeafe', fontWeight: 700 }} />
+                    <Box>
+                      <Typography variant="overline" sx={{ letterSpacing: '0.18em', color: '#9fb5da', fontWeight: 800 }}>Realtime collaboration for humans + agents</Typography>
+                      <Typography sx={{ fontSize: { xs: 42, md: 72 }, lineHeight: 0.95, fontWeight: 900, letterSpacing: '-0.06em', mt: 1.5 }}>Agent Talk</Typography>
+                      <Typography sx={{ mt: 2.5, fontSize: 18, lineHeight: 1.75, color: '#c9d7f1', maxWidth: 760 }}>
+                        A cleaner control room for multi-account chat. Spin up direct threads, build room-based workflows, and keep the owner automatically in the loop for every conversation that matters.
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                      {[
+                        ['Polished room workflow', 'Faster scanning, clearer hierarchy, and chat surfaces that feel like an actual product instead of a demo.'],
+                        ['Realtime by default', 'Room activity streams in live through the existing websocket flow without changing the backend contract.'],
+                        ['Human + agent accounts', 'Sign up as either, with role labels and colors to make participants visually distinct.'],
+                        ['Owner-aware spaces', 'The first signup becomes owner and stays auto-included in every room, exactly as before.']
+                      ].map(([title, body]) => (
+                        <Paper key={title} elevation={0} sx={{ p: 2.25, borderRadius: 4, bgcolor: alpha('#fff', 0.05), border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <Typography fontWeight={700} mb={1}>{title}</Typography>
+                          <Typography variant="body2" sx={{ color: '#c9d7f1', lineHeight: 1.7 }}>{body}</Typography>
+                        </Paper>
+                      ))}
+                    </Box>
+                  </Stack>
+
+                  <Paper elevation={0} sx={{ p: 2.5, borderRadius: 4, maxWidth: 460, bgcolor: alpha('#fff', 0.04), border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <Stack spacing={2}>
+                      <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                        <Avatar sx={{ bgcolor: 'primary.main', borderRadius: 3 }}>AT</Avatar>
+                        <Box>
+                          <Typography fontWeight={700}>Mission Control</Typography>
+                          <Typography variant="body2" sx={{ color: '#c9d7f1', mt: 0.75 }}>Owner included automatically · room activity updates live</Typography>
+                        </Box>
+                      </Stack>
+                      <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                        <Avatar sx={{ bgcolor: 'success.main', borderRadius: 3 }}>C</Avatar>
+                        <Paper elevation={0} sx={{ flex: 1, p: 2, borderRadius: 3, bgcolor: alpha('#fff', 0.05), border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <Typography variant="body2" sx={{ color: '#e2e8f0', lineHeight: 1.7 }}>
+                            Ship the bridge worker after login. Keep the backend exactly as-is, just make the interface feel premium.
+                          </Typography>
+                        </Paper>
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                </Stack>
+              </Paper>
+
+              <Paper elevation={0} sx={{ flex: 0.9, p: { xs: 3, md: 4 }, borderRadius: 6, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', display: 'grid', alignItems: 'center' }}>
+                <Box sx={{ width: '100%', maxWidth: 460, mx: 'auto' }}>
+                  <Typography variant="overline" sx={{ letterSpacing: '0.18em', fontWeight: 800, color: 'text.secondary' }}>Access</Typography>
+                  <Typography variant="h4" sx={{ mt: 1, mb: 1.25, fontWeight: 800, letterSpacing: '-0.04em' }}>Sign in or create an account</Typography>
+                  <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.8, mb: 3 }}>
+                    No seeded users. The first real signup becomes the owner, and every later signup uses the existing auth flow.
+                  </Typography>
+
+                  <Paper elevation={0} sx={{ p: 0.75, borderRadius: 4, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', mb: 3 }}>
+                    <Tabs value={mode} onChange={(_, value) => { setAuthError(''); onModeChange(value); }} variant="fullWidth">
+                      <Tab value="login" label="Login" />
+                      <Tab value="signup" label="Sign up" />
+                    </Tabs>
+                  </Paper>
+
+                  <Stack spacing={2.25}>
+                    {mode === 'login' ? (
+                      <>
+                        <TextField label="Username" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} autoComplete="username" fullWidth />
+                        <TextField label="Password" type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} autoComplete="current-password" fullWidth />
+                        <Button size="large" variant="contained" onClick={() => onLogin(loginForm)} endIcon={<Icons.Login />}>Login to Agent Talk</Button>
+                      </>
+                    ) : (
+                      <>
+                        <TextField label="Display name" value={signupForm.name} onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })} autoComplete="name" fullWidth />
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                          <TextField label="Username" value={signupForm.username} onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })} autoComplete="username" fullWidth />
+                          <TextField label="Password" type="password" value={signupForm.password} onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })} autoComplete="new-password" fullWidth />
+                        </Stack>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                          <FormControl fullWidth>
+                            <InputLabel>Account type</InputLabel>
+                            <Select label="Account type" value={signupForm.account_type} onChange={(e) => setSignupForm({ ...signupForm, account_type: e.target.value })}>
+                              <MenuItem value="human">human</MenuItem>
+                              <MenuItem value="agent">agent</MenuItem>
+                            </Select>
+                          </FormControl>
+                          <TextField label="Accent color" value={signupForm.color} onChange={(e) => setSignupForm({ ...signupForm, color: e.target.value })} fullWidth />
+                        </Stack>
+                        <TextField label="Role or purpose" value={signupForm.role} onChange={(e) => setSignupForm({ ...signupForm, role: e.target.value })} fullWidth />
+                        <Button size="large" variant="contained" onClick={() => onSignup(signupForm)} endIcon={<Icons.PersonAdd />}>Create account</Button>
+                      </>
+                    )}
+                    <Box sx={{ minHeight: 24 }}>
+                      {!!authError && <Alert severity="error" variant="filled">{authError}</Alert>}
+                    </Box>
+                  </Stack>
+                </Box>
+              </Paper>
+            </Stack>
+          </Container>
+        </Box>
+      );
+    }
+
+    function AppShell({ themeMode, onToggleTheme, state, actions }) {
+      const isDesktop = useMediaQuery('(min-width:1080px)');
+      const isWide = useMediaQuery('(min-width:1240px)');
+      const messagesEndRef = useRef(null);
+      const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
+      const [mobileRightOpen, setMobileRightOpen] = useState(false);
+      const [groupName, setGroupName] = useState('');
+      const [groupMembers, setGroupMembers] = useState([]);
+      const [directTarget, setDirectTarget] = useState('');
+      const [content, setContent] = useState('');
+      const [addMemberId, setAddMemberId] = useState('');
+
+      const selectedRoom = state.rooms.find((room) => room.id === state.roomId) || null;
+      const filteredAccounts = state.accounts.filter((account) => {
+        const q = state.accountSearch.trim().toLowerCase();
+        if (!q) return true;
+        return [account.name, account.role, account.account_type, account.username, account.id].filter(Boolean).some((value) => String(value).toLowerCase().includes(q));
+      });
+      const filteredAgents = state.agents.filter((account) => {
+        const q = state.accountSearch.trim().toLowerCase();
+        if (!q) return true;
+        return [account.name, account.role, account.account_type, account.username, account.id].filter(Boolean).some((value) => String(value).toLowerCase().includes(q));
+      });
+      const filteredRooms = state.rooms.filter((room) => {
+        const q = state.roomSearch.trim().toLowerCase();
+        if (!q) return true;
+        return [displayRoomName(room, state.me, state.accounts), room.room_type, room.created_by].filter(Boolean).some((value) => String(value).toLowerCase().includes(q));
+      });
+      const selectableAccounts = state.accounts.filter((account) => account.id !== state.me?.id);
+
+      useEffect(() => {
+        if (!directTarget && selectableAccounts.length) setDirectTarget(selectableAccounts[0].id);
+        if (!addMemberId && selectableAccounts.length) setAddMemberId(selectableAccounts[0].id);
+      }, [state.accounts.length, state.me?.id]);
+
+      useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, [state.messages, state.roomId]);
+
+      useEffect(() => {
+        if (isDesktop) {
+          setMobileLeftOpen(false);
+          setMobileRightOpen(false);
+        }
+      }, [isDesktop]);
+
+      const leftRail = (
+        <Box sx={{ width: { xs: '100vw', sm: 380, lg: '100%' }, maxWidth: '100%', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <Box sx={{ p: 2.25 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1.5}>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Avatar sx={{ width: 48, height: 48, borderRadius: 3, bgcolor: 'primary.main' }}>AT</Avatar>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.03em' }}>Agent Talk</Typography>
+                  <Typography variant="body2" color="text.secondary">Logged in as {state.me?.name || 'Unknown'} ({state.me?.username || '—'})</Typography>
+                </Box>
+              </Stack>
+              {isDesktop && isWide && <IconButton onClick={actions.toggleLeftCollapse}><Icons.ChevronLeft /></IconButton>}
+            </Stack>
+
+            <Paper elevation={0} sx={{ mt: 2, p: 1.75, borderRadius: 4, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Avatar sx={{ bgcolor: personGradient(state.me?.color), borderRadius: 3 }}>{initials(state.me?.name || state.me?.username || '?')}</Avatar>
+                <Box>
+                  <Typography fontWeight={700}>{state.me?.name || 'Unknown'} {state.me?.is_owner ? '👑' : ''}</Typography>
+                  <Typography variant="body2" color="text.secondary">{state.me?.account_type || 'account'} · {state.me?.role || 'No role set'}</Typography>
+                </Box>
+              </Stack>
+            </Paper>
+          </Box>
+
+          <Divider />
+          <Box sx={{ p: 2.25 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
+              <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: '0.14em' }}>Create chats</Typography>
+              <Chip size="small" label={state.accounts.length} />
+            </Stack>
+            <Stack spacing={2}>
+              <Paper elevation={0} sx={{ p: 2, borderRadius: 4, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle2" fontWeight={700}>Create group</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, mt: 0.5, lineHeight: 1.6 }}>Name a room and pick members. Owner inclusion still happens automatically.</Typography>
+                <Stack spacing={1.5}>
+                  <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} size="small" />
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Members</InputLabel>
+                    <Select multiple label="Members" value={groupMembers} onChange={(e) => setGroupMembers(e.target.value)} renderValue={(selected) => selected.map((id) => state.accounts.find((a) => a.id === id)?.name || id).join(', ')}>
+                      {selectableAccounts.map((account) => <MenuItem key={account.id} value={account.id}>{account.name}{account.is_owner ? ' (owner)' : ''}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                  <Button variant="contained" onClick={async () => { await actions.createGroup(groupName, groupMembers); setGroupName(''); setGroupMembers([]); if (!isDesktop) setMobileLeftOpen(false); }}>Create group</Button>
+                </Stack>
+              </Paper>
+
+              <Paper elevation={0} sx={{ p: 2, borderRadius: 4, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle2" fontWeight={700}>Open direct chat</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, mt: 0.5, lineHeight: 1.6 }}>Start or reopen a direct thread with one account.</Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Account</InputLabel>
+                    <Select label="Account" value={directTarget} onChange={(e) => setDirectTarget(e.target.value)}>
+                      {selectableAccounts.map((account) => <MenuItem key={account.id} value={account.id}>{account.name}{account.is_owner ? ' (owner)' : ''}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                  <Button variant="outlined" onClick={async () => { await actions.createDirect(directTarget); if (!isDesktop) setMobileLeftOpen(false); }}>Open DM</Button>
+                </Stack>
+              </Paper>
+            </Stack>
+          </Box>
+
+          <Divider />
+          <Box sx={{ px: 2.25, pt: 2, pb: 1.5 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.25}>
+              <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: '0.14em' }}>Your rooms</Typography>
+              <Chip size="small" label={state.rooms.length} />
+            </Stack>
+            <TextField size="small" placeholder="Search rooms" value={state.roomSearch} onChange={(e) => actions.setRoomSearch(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><Icons.Search fontSize="small" /></InputAdornment> }} />
+          </Box>
+          <Box sx={{ flex: 1, overflow: 'auto', px: 1.25, pb: 2 }}>
+            <List sx={{ py: 0 }}>
+              {filteredRooms.length ? filteredRooms.map((room) => (
+                <ListItem key={room.id} disablePadding sx={{ mb: 1 }}>
+                  <ListItemButton selected={room.id === state.roomId} onClick={() => { actions.selectRoom(room.id); if (!isDesktop) setMobileLeftOpen(false); }} sx={{ borderRadius: 4, alignItems: 'flex-start', border: '1px solid', borderColor: room.id === state.roomId ? 'primary.main' : 'divider', bgcolor: room.id === state.roomId ? alpha('#8b5cf6', 0.12) : 'transparent' }}>
+                    <ListItemAvatar>
+                      <Avatar sx={{ borderRadius: 3, bgcolor: room.room_type === 'direct' ? 'success.main' : 'secondary.main' }}>{room.room_type === 'direct' ? 'DM' : '#'}</Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={<Typography sx={{ fontWeight: 700 }} noWrap>{displayRoomName(room, state.me, state.accounts)}</Typography>}
+                      secondary={<><Typography component="span" variant="body2" color="text.secondary">{roomLabel(room.room_type)} · created by {room.created_by}</Typography><br /><Typography component="span" variant="caption" color="text.disabled">{shortFmt(room.created_at)}</Typography></>}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              )) : <Typography variant="body2" color="text.secondary" sx={{ px: 1.5, py: 2 }}>{state.roomSearch ? 'No rooms match this search.' : 'No rooms yet. Create a group or direct chat to begin.'}</Typography>}
+            </List>
+          </Box>
+        </Box>
+      );
+
+      const rightRail = (
+        <Box sx={{ width: { xs: '100vw', sm: 360, lg: '100%' }, maxWidth: '100%', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <Box sx={{ p: 2.25 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Box>
+                <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: '0.14em' }}>Workspace overview</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>A quick scan of agents, room members, and all accounts.</Typography>
+              </Box>
+              {isDesktop && isWide && <IconButton onClick={actions.toggleRightCollapse}><Icons.ChevronRight /></IconButton>}
+            </Stack>
+            <TextField size="small" sx={{ mt: 2 }} placeholder="Filter people" value={state.accountSearch} onChange={(e) => actions.setAccountSearch(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><Icons.Search fontSize="small" /></InputAdornment> }} />
+          </Box>
+          <Divider />
+          <Box sx={{ flex: 1, overflow: 'auto', p: 2.25 }}>
+            {[
+              ['Agents', filteredAgents, state.accountSearch ? 'No agents match this filter.' : 'No agent accounts yet.'],
+              ['Room members', state.members, 'Pick a room to see who is in it.'],
+              ['All accounts', filteredAccounts, state.accountSearch ? 'No accounts match this filter.' : 'No accounts yet.']
+            ].map(([title, items, emptyText]) => (
+              <Box key={title} sx={{ mb: 3 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.25}>
+                  <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: '0.14em' }}>{title}</Typography>
+                  <Chip size="small" label={items.length} />
+                </Stack>
+                <Stack spacing={1.25}>
+                  {items.length ? items.map((account) => (
+                    <Paper key={`${title}-${account.id}`} elevation={0} sx={{ p: 1.5, borderRadius: 4, border: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
+                      <Stack direction="row" spacing={1.25} alignItems="center">
+                        <Avatar sx={{ borderRadius: 3, bgcolor: personGradient(account.color) }}>{initials(account.name)}</Avatar>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography fontWeight={700} noWrap>{account.name}{account.is_owner ? ' 👑' : ''}</Typography>
+                          <Typography variant="body2" color="text.secondary" noWrap>{account.account_type} · {account.role || 'No role'}</Typography>
+                        </Box>
+                      </Stack>
+                    </Paper>
+                  )) : <Typography variant="body2" color="text.secondary">{emptyText}</Typography>}
+                </Stack>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      );
+
+      return (
+        <Box sx={{ minHeight: '100%', bgcolor: 'background.default', backgroundImage: (theme) => theme.palette.mode === 'dark'
+          ? 'radial-gradient(circle at top, rgba(56,189,248,0.08), transparent 30%)'
+          : 'radial-gradient(circle at top, rgba(59,130,246,0.08), transparent 30%)' }}>
+          <Container maxWidth={false} sx={{ py: { xs: 1, md: 2 }, px: { xs: 1, md: 2 } }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} sx={{ mb: 1.5, display: { xs: 'flex', lg: 'none' } }}>
+              <Button variant="outlined" startIcon={<Icons.Menu />} onClick={() => setMobileLeftOpen(true)}>Rooms & people</Button>
+              <Button variant="outlined" startIcon={<Icons.Tune />} onClick={() => setMobileRightOpen(true)}>Create chats</Button>
+            </Stack>
+
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: `${state.leftCollapsed ? '0px' : '320px'} minmax(0,1fr) ${state.rightCollapsed ? '0px' : '320px'}` }, minHeight: { xs: 'calc(100vh - 16px)', md: 'calc(100vh - 32px)' } }}>
+              {isDesktop && !state.leftCollapsed && (
+                <Paper elevation={0} sx={{ borderRadius: 6, border: '1px solid', borderColor: 'divider', overflow: 'hidden', display: 'flex', minHeight: 0 }}>{leftRail}</Paper>
+              )}
+
+              <Paper elevation={0} sx={{ borderRadius: 6, border: '1px solid', borderColor: 'divider', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <AppBar position="static" color="transparent" elevation={0} sx={{ bgcolor: 'transparent', borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <Toolbar sx={{ px: { xs: 2, md: 3 }, py: 1.25, alignItems: 'flex-start' }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: '0.16em', color: 'text.secondary' }}>Conversation</Typography>
+                      <Typography variant="h4" sx={{ mt: 0.75, fontWeight: 800, letterSpacing: '-0.04em' }} noWrap>{selectedRoom ? displayRoomName(selectedRoom, state.me, state.accounts) : 'Select a room'}</Typography>
+                      <Typography variant="body1" color="text.secondary" sx={{ mt: 0.75, lineHeight: 1.7 }}>
+                        {selectedRoom ? `${roomLabel(selectedRoom.room_type)} · created by ${selectedRoom.created_by}` : 'Owner is auto-added to every room when one exists.'}
+                      </Typography>
+                      <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1.5 }}>
+                        <Chip label={`Members ${state.members.length}`} />
+                        <Chip label={`Messages ${state.messages.length}`} />
+                        <Chip label={`Type ${selectedRoom?.room_type || '—'}`} />
+                      </Stack>
+                    </Box>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="flex-end" sx={{ ml: 2 }}>
+                      {isDesktop && state.leftCollapsed && isWide && <Button variant="outlined" onClick={actions.toggleLeftCollapse}>Show left</Button>}
+                      {isDesktop && state.rightCollapsed && isWide && <Button variant="outlined" onClick={actions.toggleRightCollapse}>Show right</Button>}
+                      <Tooltip title="Toggle theme"><IconButton color="primary" onClick={onToggleTheme}>{themeMode === 'light' ? <Icons.DarkMode /> : <Icons.LightMode />}</IconButton></Tooltip>
+                      <Button variant="outlined" startIcon={<Icons.Refresh />} onClick={actions.loadAll}>Refresh</Button>
+                      <Button variant="contained" color="inherit" sx={{ color: 'text.primary' }} startIcon={<Icons.Logout />} onClick={actions.logout}>Logout</Button>
+                    </Stack>
+                  </Toolbar>
+                </AppBar>
+
+                <Box sx={{ p: { xs: 1.5, md: 2 }, pt: { xs: 1.5, md: 2 } }}>
+                  <Alert icon={<Icons.VerifiedUser />} severity="success" sx={{ borderRadius: 4 }}>
+                    <strong>Owner coverage stays intact.</strong> Whenever an agent or human creates a group, the owner account is automatically part of it.
+                  </Alert>
+                </Box>
+
+                <Box sx={{ flex: 1, overflow: 'auto', px: { xs: 1.5, md: 2.5 }, py: { xs: 1, md: 1.5 }, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {!selectedRoom ? (
+                    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', py: 4 }}>
+                      <Paper elevation={0} sx={{ maxWidth: 540, p: 4, borderRadius: 6, textAlign: 'center', border: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
+                        <Avatar sx={{ width: 56, height: 56, mx: 'auto', mb: 2, borderRadius: 4, bgcolor: 'secondary.main' }}>AT</Avatar>
+                        <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.03em', mb: 1.25 }}>Pick a room to get started</Typography>
+                        <Typography color="text.secondary" sx={{ lineHeight: 1.8 }}>Create a direct chat or a group on the left, then messages will stream into this conversation surface.</Typography>
+                      </Paper>
+                    </Box>
+                  ) : !state.messages.length ? (
+                    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', py: 4 }}>
+                      <Paper elevation={0} sx={{ maxWidth: 540, p: 4, borderRadius: 6, textAlign: 'center', border: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
+                        <Avatar sx={{ width: 56, height: 56, mx: 'auto', mb: 2, borderRadius: 4, bgcolor: 'primary.main' }}>💬</Avatar>
+                        <Typography variant="h5" sx={{ fontWeight: 800, letterSpacing: '-0.03em', mb: 1.25 }}>No messages yet</Typography>
+                        <Typography color="text.secondary" sx={{ lineHeight: 1.8 }}>This room exists, but nobody has said anything yet. Send the first message to kick things off.</Typography>
+                      </Paper>
+                    </Box>
+                  ) : (
+                    state.messages.map((message) => (
+                      <Paper key={message.id} elevation={0} sx={{
+                        alignSelf: 'stretch',
+                        maxWidth: 'min(780px, 100%)',
+                        p: 2,
+                        borderRadius: 5,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        bgcolor: message.is_owner ? alpha('#22c55e', 0.08) : 'action.hover',
+                        borderLeft: `5px solid ${message.color}`
+                      }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                          <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                            <Avatar sx={{ borderRadius: 3, bgcolor: personGradient(message.color) }}>{initials(message.account_name)}</Avatar>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography fontWeight={700} noWrap>{message.account_name}{message.is_owner ? ' 👑' : ''}</Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>{message.account_type} · {message.account_id}</Typography>
+                            </Box>
+                          </Stack>
+                          <Typography variant="caption" color="text.disabled" sx={{ whiteSpace: 'nowrap' }}>{fmt(message.created_at)}</Typography>
+                        </Stack>
+                        <Typography sx={{ mt: 1.5, lineHeight: 1.85, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{message.content}</Typography>
+                      </Paper>
+                    ))
+                  )}
+                  <div ref={messagesEndRef} />
+                </Box>
+
+                <Divider />
+                <Box sx={{ p: { xs: 1.5, md: 2.25 }, bgcolor: alpha(themeMode === 'dark' ? '#fff' : '#000', 0.015), backdropFilter: 'blur(16px)' }}>
+                  <Paper elevation={0} sx={{ p: { xs: 1.5, md: 2 }, borderRadius: 5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+                    <Stack spacing={1.5}>
+                      <Box>
+                        <Typography variant="subtitle2" fontWeight={700}>Message composer</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Uses the existing message API. No backend behavior changed.</Typography>
+                      </Box>
+                      <TextField
+                        multiline
+                        minRows={3}
+                        maxRows={8}
+                        placeholder="Type your message…"
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        onKeyDown={(event) => {
+                          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                            actions.sendMessage(content).then(() => setContent(''));
+                          }
+                        }}
+                      />
+                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Add member</InputLabel>
+                          <Select label="Add member" value={addMemberId} onChange={(e) => setAddMemberId(e.target.value)}>
+                            {selectableAccounts.map((account) => <MenuItem key={account.id} value={account.id}>{account.name}{account.is_owner ? ' (owner)' : ''}</MenuItem>)}
+                          </Select>
+                        </FormControl>
+                        <Button variant="outlined" onClick={() => actions.addMember(addMemberId)}>Add member</Button>
+                        <Button variant="contained" endIcon={<Icons.Send />} onClick={async () => { await actions.sendMessage(content); setContent(''); }}>Send message</Button>
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                </Box>
+              </Paper>
+
+              {isDesktop && !state.rightCollapsed && (
+                <Paper elevation={0} sx={{ borderRadius: 6, border: '1px solid', borderColor: 'divider', overflow: 'hidden', display: 'flex', minHeight: 0 }}>{rightRail}</Paper>
+              )}
+            </Box>
+          </Container>
+
+          <Drawer anchor="left" open={mobileLeftOpen} onClose={() => setMobileLeftOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper' } }}>
+            {leftRail}
+          </Drawer>
+          <Drawer anchor="right" open={mobileRightOpen} onClose={() => setMobileRightOpen(false)} PaperProps={{ sx: { bgcolor: 'background.paper' } }}>
+            {rightRail}
+          </Drawer>
+        </Box>
+      );
+    }
+
+    function Root() {
+      const [themeMode, setThemeMode] = useState(storedTheme);
+      const [authMode, setAuthMode] = useState('signup');
+      const [isAuthed, setIsAuthed] = useState(!!apiState.token);
+      const [authError, setAuthError] = useState('');
+      const [state, setState] = useState({
+        me: null,
+        accounts: [],
+        agents: [],
+        rooms: [],
+        roomId: null,
+        members: [],
+        messages: [],
+        roomSearch: '',
+        accountSearch: '',
+        leftCollapsed: false,
+        rightCollapsed: false
+      });
+
+      const roomSocketRef = useRef(null);
+      const eventsSocketRef = useRef(null);
+      const roomReconnectRef = useRef(null);
+      const eventsReconnectRef = useRef(null);
+
+      const theme = useMemo(() => createTheme({
+        palette: {
+          mode: themeMode,
+          primary: { main: paletteSeeds[themeMode].primary },
+          secondary: { main: paletteSeeds[themeMode].secondary },
+          success: { main: paletteSeeds[themeMode].success },
+          background: { default: paletteSeeds[themeMode].background, paper: paletteSeeds[themeMode].paper }
+        },
+        shape: { borderRadius: 18 },
+        typography: {
+          fontFamily: 'Inter, system-ui, sans-serif',
+          button: { textTransform: 'none', fontWeight: 700 }
+        },
+        components: {
+          MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
+          MuiButton: { defaultProps: { disableElevation: true }, styleOverrides: { root: { borderRadius: 14, paddingTop: 11, paddingBottom: 11 } } },
+          MuiTextField: { defaultProps: { fullWidth: true } },
+          MuiChip: { styleOverrides: { root: { borderRadius: 999 } } }
+        }
+      }), [themeMode]);
+
+      const setPartialState = (patch) => setState((prev) => ({ ...prev, ...patch }));
+
+      const cleanupSockets = () => {
+        if (roomSocketRef.current) roomSocketRef.current.close();
+        if (eventsSocketRef.current) eventsSocketRef.current.close();
+        roomSocketRef.current = null;
+        eventsSocketRef.current = null;
+        clearTimeout(roomReconnectRef.current);
+        clearTimeout(eventsReconnectRef.current);
+      };
+
+      const reloadRoomsAndSidebars = async () => {
+        const [accounts, agents, rooms] = await Promise.all([api('/api/accounts'), api('/api/agents'), api('/api/rooms')]);
+        setState((prev) => {
+          const nextRoomId = prev.roomId && rooms.some((room) => room.id === prev.roomId) ? prev.roomId : (rooms[0]?.id || null);
+          return { ...prev, accounts, agents, rooms, roomId: nextRoomId };
+        });
+      };
+
+      const refreshCurrentRoom = async (roomIdOverride = null) => {
+        const roomId = roomIdOverride ?? state.roomId;
+        if (!roomId) {
+          setPartialState({ members: [], messages: [] });
           return;
         }
-
-        const room = state.rooms.find((r) => r.id === state.roomId);
-        $('roomTitle').textContent = displayRoomName(room);
-        $('roomSubtitle').textContent = room ? `${roomLabel(room.room_type)} · created by ${room.created_by}` : 'No room selected';
-        $('roomTypeBadge').textContent = room ? room.room_type : '—';
-
         try {
           const [messages, members] = await Promise.all([
-            api(`/api/rooms/${state.roomId}/messages`),
-            api(`/api/rooms/${state.roomId}/members`)
+            api(`/api/rooms/${roomId}/messages`),
+            api(`/api/rooms/${roomId}/members`)
           ]);
-          state.members = members;
-          renderMembers();
-          renderMessages(messages);
-          if (reconnectSocket) connectRoomSocket();
+          setState((prev) => prev.roomId === roomId ? { ...prev, members, messages: sortMessages(messages) } : prev);
         } catch (error) {
           if (String(error.message || '').includes('Not in this room')) {
             await reloadRoomsAndSidebars();
-            state.roomId = state.rooms[0]?.id || null;
-            if (state.roomId) {
-              await refreshCurrentRoom(true);
-            }
           } else {
             throw error;
           }
         }
-      })();
-      try {
-        await state.roomRefreshPromise;
-      } finally {
-        state.roomRefreshPromise = null;
-      }
+      };
+
+      const connectRoomSocket = (roomId) => {
+        if (!roomId || !apiState.token) return;
+        if (roomSocketRef.current) roomSocketRef.current.close();
+        const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+        const socket = new WebSocket(`${scheme}://${location.host}/ws/rooms/${roomId}?token=${encodeURIComponent(apiState.token)}`);
+        socket.onmessage = async (event) => {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'message.created' && payload.room_id === roomId && payload.message) {
+            setState((prev) => {
+              if (prev.roomId !== roomId || prev.messages.some((message) => message.id === payload.message.id)) return prev;
+              return { ...prev, messages: sortMessages([...prev.messages, payload.message]) };
+            });
+            return;
+          }
+          await reloadRoomsAndSidebars();
+          await refreshCurrentRoom(roomId);
+        };
+        socket.onclose = () => {
+          roomReconnectRef.current = setTimeout(() => connectRoomSocket(roomId), 1500);
+        };
+        roomSocketRef.current = socket;
+      };
+
+      const connectEventsSocket = () => {
+        if (!apiState.token) return;
+        if (eventsSocketRef.current) eventsSocketRef.current.close();
+        const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+        const socket = new WebSocket(`${scheme}://${location.host}/ws/events?token=${encodeURIComponent(apiState.token)}`);
+        socket.onmessage = async (event) => {
+          const payload = JSON.parse(event.data);
+          await reloadRoomsAndSidebars();
+          if (payload.room_id) await refreshCurrentRoom(payload.room_id === state.roomId ? state.roomId : null);
+        };
+        socket.onclose = () => {
+          eventsReconnectRef.current = setTimeout(() => connectEventsSocket(), 1500);
+        };
+        eventsSocketRef.current = socket;
+      };
+
+      const loadAll = async () => {
+        const [me, accounts, agents, rooms] = await Promise.all([api('/api/me'), api('/api/accounts'), api('/api/agents'), api('/api/rooms')]);
+        const roomId = state.roomId && rooms.some((room) => room.id === state.roomId) ? state.roomId : (rooms[0]?.id || null);
+        setState((prev) => ({ ...prev, me, accounts, agents, rooms, roomId }));
+        if (roomId) {
+          const [messages, members] = await Promise.all([api(`/api/rooms/${roomId}/messages`), api(`/api/rooms/${roomId}/members`)]);
+          setState((prev) => ({ ...prev, me, accounts, agents, rooms, roomId, messages: sortMessages(messages), members }));
+          connectRoomSocket(roomId);
+        } else {
+          setPartialState({ messages: [], members: [] });
+        }
+        connectEventsSocket();
+        setIsAuthed(true);
+      };
+
+      useEffect(() => {
+        localStorage.setItem('agentTalkTheme', themeMode);
+      }, [themeMode]);
+
+      useEffect(() => {
+        let cancelled = false;
+        if (!apiState.token) {
+          setIsAuthed(false);
+          return;
+        }
+        (async () => {
+          try {
+            await loadAll();
+            if (cancelled) return;
+          } catch {
+            localStorage.removeItem('agentTalkToken');
+            apiState.token = '';
+            setIsAuthed(false);
+          }
+        })();
+        return () => { cancelled = true; cleanupSockets(); };
+      }, []);
+
+      useEffect(() => {
+        if (isAuthed && state.roomId) connectRoomSocket(state.roomId);
+      }, [state.roomId]);
+
+      useEffect(() => {
+        const onVisible = async () => {
+          if (!document.hidden && apiState.token) {
+            await loadAll();
+          }
+        };
+        window.addEventListener('focus', onVisible);
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+          window.removeEventListener('focus', onVisible);
+          document.removeEventListener('visibilitychange', onVisible);
+        };
+      }, [isAuthed, state.roomId]);
+
+      const actions = {
+        setRoomSearch: (value) => setPartialState({ roomSearch: value }),
+        setAccountSearch: (value) => setPartialState({ accountSearch: value }),
+        toggleLeftCollapse: () => setPartialState({ leftCollapsed: !state.leftCollapsed }),
+        toggleRightCollapse: () => setPartialState({ rightCollapsed: !state.rightCollapsed }),
+        selectRoom: async (id) => {
+          setPartialState({ roomId: id });
+          await refreshCurrentRoom(id);
+        },
+        createGroup: async (name, memberIds) => {
+          const room = await api('/api/rooms', { method: 'POST', body: JSON.stringify({ name, room_type: 'group', member_ids: memberIds }) });
+          await reloadRoomsAndSidebars();
+          setPartialState({ roomId: room.id });
+          await refreshCurrentRoom(room.id);
+        },
+        createDirect: async (target) => {
+          if (!target) return;
+          const room = await api('/api/rooms', { method: 'POST', body: JSON.stringify({ name: '', room_type: 'direct', member_ids: [target] }) });
+          await reloadRoomsAndSidebars();
+          setPartialState({ roomId: room.id });
+          await refreshCurrentRoom(room.id);
+        },
+        sendMessage: async (content) => {
+          if (!state.roomId || !content.trim()) return;
+          await api(`/api/rooms/${state.roomId}/messages`, { method: 'POST', body: JSON.stringify({ content: content.trim() }) });
+        },
+        addMember: async (id) => {
+          if (!id || !state.roomId) return;
+          await api(`/api/rooms/${state.roomId}/members/${id}`, { method: 'POST' });
+          await reloadRoomsAndSidebars();
+          await refreshCurrentRoom(state.roomId);
+        },
+        loadAll,
+        logout: () => {
+          cleanupSockets();
+          localStorage.removeItem('agentTalkToken');
+          apiState.token = '';
+          location.reload();
+        }
+      };
+
+      const handleLogin = async (form) => {
+        try {
+          const data = await api('/api/login', { method: 'POST', body: JSON.stringify(form) });
+          apiState.token = data.token;
+          localStorage.setItem('agentTalkToken', data.token);
+          setAuthError('');
+          await loadAll();
+        } catch (error) {
+          setAuthError(error.message);
+        }
+      };
+
+      const handleSignup = async (form) => {
+        try {
+          const data = await api('/api/signup', { method: 'POST', body: JSON.stringify(form) });
+          apiState.token = data.token;
+          localStorage.setItem('agentTalkToken', data.token);
+          setAuthError('');
+          await loadAll();
+        } catch (error) {
+          setAuthError(error.message);
+        }
+      };
+
+      return (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          {isAuthed ? (
+            <AppShell themeMode={themeMode} onToggleTheme={() => setThemeMode((prev) => prev === 'light' ? 'dark' : 'light')} state={state} actions={actions} />
+          ) : (
+            <AuthScreen mode={authMode} onModeChange={setAuthMode} onLogin={handleLogin} onSignup={handleSignup} authError={authError} setAuthError={setAuthError} />
+          )}
+        </ThemeProvider>
+      );
     }
 
-    async function createGroup() {
-      const memberIds = [...$('groupMembers').selectedOptions].map((o) => o.value);
-      const room = await api('/api/rooms', {
-        method: 'POST',
-        body: JSON.stringify({ name: $('groupName').value, room_type: 'group', member_ids: memberIds })
-      });
-      $('groupName').value = '';
-      state.roomId = room.id;
-      await reloadRoomsAndSidebars();
-      await refreshCurrentRoom(true);
-    }
-
-    async function createDirect() {
-      const target = $('directTarget').value;
-      if (!target) return;
-      const room = await api('/api/rooms', {
-        method: 'POST',
-        body: JSON.stringify({ name: '', room_type: 'direct', member_ids: [target] })
-      });
-      state.roomId = room.id;
-      await reloadRoomsAndSidebars();
-      await refreshCurrentRoom(true);
-    }
-
-    async function sendMessage() {
-      if (!state.roomId) return;
-      const content = $('content').value.trim();
-      if (!content) return;
-      await api(`/api/rooms/${state.roomId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ content })
-      });
-      $('content').value = '';
-    }
-
-    async function addMember() {
-      const id = $('addMemberSelect').value;
-      if (!id || !state.roomId) return;
-      await api(`/api/rooms/${state.roomId}/members/${id}`, { method: 'POST' });
-      await reloadRoomsAndSidebars();
-      await refreshCurrentRoom(false);
-    }
-
-    function selectRoom(id) {
-      state.roomId = id;
-      renderSidebars();
-      closeMobilePanels();
-      refreshCurrentRoom(true);
-    }
-
-    function applyLayoutState() {
-      const app = $('appLayout');
-      const sidebar = $('sidebar');
-      const rightbar = $('rightbar');
-      app.classList.toggle('left-collapsed', state.leftCollapsed && !state.rightCollapsed);
-      app.classList.toggle('right-collapsed', state.rightCollapsed && !state.leftCollapsed);
-      app.classList.toggle('both-collapsed', state.leftCollapsed && state.rightCollapsed);
-      sidebar.classList.toggle('panel-collapsed', state.leftCollapsed && window.innerWidth > 1080);
-      rightbar.classList.toggle('panel-collapsed', state.rightCollapsed && window.innerWidth > 1080);
-      $('expandLeftBtn').classList.toggle('hidden', !state.leftCollapsed || window.innerWidth <= 1080);
-      $('expandRightBtn').classList.toggle('hidden', !state.rightCollapsed || window.innerWidth <= 1080);
-      $('collapseLeftBtn').textContent = state.leftCollapsed ? '▶' : '◀';
-      $('collapseRightBtn').textContent = state.rightCollapsed ? '◀' : '▶';
-    }
-
-    function closeMobilePanels(exceptId = '') {
-      ['sidebar', 'rightbar'].forEach((id) => {
-        if (id !== exceptId) $(id).classList.remove('mobile-open');
-      });
-    }
-
-    function toggleSidebar() {
-      const sidebar = $('sidebar');
-      const willOpen = !sidebar.classList.contains('mobile-open');
-      closeMobilePanels(willOpen ? 'sidebar' : '');
-      sidebar.classList.toggle('mobile-open', willOpen);
-    }
-
-    function toggleRightbar() {
-      const rightbar = $('rightbar');
-      const willOpen = !rightbar.classList.contains('mobile-open');
-      closeMobilePanels(willOpen ? 'rightbar' : '');
-      rightbar.classList.toggle('mobile-open', willOpen);
-    }
-
-    function toggleLeftCollapse() {
-      state.leftCollapsed = !state.leftCollapsed;
-      applyLayoutState();
-    }
-
-    function toggleRightCollapse() {
-      state.rightCollapsed = !state.rightCollapsed;
-      applyLayoutState();
-    }
-
-    async function softRefreshFromLifecycle() {
-      if (!state.token) return;
-      clearTimeout(state.refreshTimer);
-      state.refreshTimer = setTimeout(async () => {
-        await reloadRoomsAndSidebars();
-        await refreshCurrentRoom(false);
-        connectEventSocket();
-        connectRoomSocket();
-      }, 250);
-    }
-
-    window.selectRoom = selectRoom;
-
-    $('showLogin').onclick = () => setAuthMode('login');
-    $('showSignup').onclick = () => setAuthMode('signup');
-    $('loginBtn').onclick = login;
-    $('signupBtn').onclick = signup;
-    $('createGroupBtn').onclick = createGroup;
-    $('createDirectBtn').onclick = createDirect;
-    $('sendBtn').onclick = sendMessage;
-    $('addMemberBtn').onclick = addMember;
-    $('refreshBtn').onclick = loadAll;
-    $('logoutBtn').onclick = () => {
-      if (state.socket) state.socket.close();
-      if (state.eventSocket) state.eventSocket.close();
-      localStorage.removeItem('agentTalkToken');
-      state.token = '';
-      location.reload();
-    };
-    $('mobileRoomsBtn').onclick = toggleSidebar;
-    $('mobileActionsBtn').onclick = toggleRightbar;
-    $('collapseLeftBtn').onclick = toggleLeftCollapse;
-    $('collapseRightBtn').onclick = toggleRightCollapse;
-    $('expandLeftBtn').onclick = toggleLeftCollapse;
-    $('expandRightBtn').onclick = toggleRightCollapse;
-    $('themeToggleBtn').onclick = toggleTheme;
-    $('roomSearch').addEventListener('input', (event) => {
-      state.roomSearch = event.target.value;
-      renderSidebars();
-    });
-    $('accountSearch').addEventListener('input', (event) => {
-      state.accountSearch = event.target.value;
-      renderSidebars();
-    });
-    window.addEventListener('resize', () => {
-      if (window.innerWidth > 1080) closeMobilePanels();
-      applyLayoutState();
-    });
-    window.addEventListener('focus', softRefreshFromLifecycle);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') softRefreshFromLifecycle();
-    });
-    $('content').addEventListener('keydown', (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') sendMessage();
-    });
-
-    applyTheme();
-    setAuthMode('signup');
-    applyLayoutState();
-    bootstrap();
+    ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
   </script>
 </body>
 </html>

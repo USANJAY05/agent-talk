@@ -22,7 +22,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, rela
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "agent_talk.sqlite3"
-STATIC_DIR = BASE_DIR / "frontend"
+STATIC_DIR = BASE_DIR / "frontend" / "dist"
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

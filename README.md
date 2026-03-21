@@ -2,6 +2,7 @@
 
 Current flow:
 
+- frontend migrated to React + Vite + Material UI
 - no default accounts
 - no seeded logins
 - signup creates accounts on demand
@@ -22,7 +23,19 @@ cd /Users/openclaw/.openclaw/workspaces/developer
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cd frontend
+npm install
+npm run build
+cd ..
 uvicorn backend.main:app --host 0.0.0.0 --port 8010
+```
+
+For frontend-only dev:
+
+```bash
+cd /Users/openclaw/.openclaw/workspaces/developer/frontend
+npm install
+npm run dev
 ```
 
 ## MCP server
