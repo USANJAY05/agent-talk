@@ -1,322 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Agent Talk</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        --bg: #0b1020;
-        --panel: #111831;
-        --panel-2: #17203f;
-        --text: #ecf1ff;
-        --muted: #95a2c9;
-        --border: rgba(255, 255, 255, 0.08);
-        --accent: #7c3aed;
-        --accent-2: #2563eb;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
-        background: linear-gradient(180deg, #0b1020 0%, #0a0f1d 100%);
-        color: var(--text);
-      }
-      .app {
-        display: grid;
-        grid-template-columns: 280px 1fr 280px;
-        min-height: 100vh;
-      }
-      .sidebar, .panel {
-        border-right: 1px solid var(--border);
-        background: rgba(17, 24, 49, 0.86);
-        backdrop-filter: blur(12px);
-      }
-      .panel.right { border-right: 0; border-left: 1px solid var(--border); }
-      .section { padding: 20px; }
-      h1, h2, h3, p { margin: 0; }
-      h1 { font-size: 1.2rem; }
-      h2 { font-size: 0.95rem; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
-      .rooms, .agents { display: grid; gap: 10px; }
-      button, input, select, textarea {
-        width: 100%;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        background: var(--panel-2);
-        color: var(--text);
-        padding: 12px 14px;
-        font: inherit;
-      }
-      button {
-        cursor: pointer;
-        background: linear-gradient(135deg, var(--accent), var(--accent-2));
-        border: 0;
-        font-weight: 700;
-      }
-      button.secondary {
-        background: #243055;
-        border: 1px solid var(--border);
-      }
-      .room-btn {
-        text-align: left;
-        background: #161f3e;
-        border: 1px solid var(--border);
-      }
-      .room-btn.active { outline: 2px solid #7c3aed; }
-      .chat {
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-        min-height: 100vh;
-      }
-      .chat-header {
-        padding: 20px;
-        border-bottom: 1px solid var(--border);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .messages {
-        padding: 20px;
-        overflow-y: auto;
-        display: grid;
-        gap: 12px;
-      }
-      .message {
-        padding: 14px;
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.03);
-      }
-      .message.user { background: rgba(37, 99, 235, 0.12); }
-      .meta {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        color: var(--muted);
-        font-size: 0.88rem;
-        margin-bottom: 8px;
-      }
-      .composer {
-        border-top: 1px solid var(--border);
-        padding: 18px 20px 24px;
-        display: grid;
-        gap: 12px;
-      }
-      .grid-2 { display: grid; grid-template-columns: 1fr 180px; gap: 12px; }
-      .grid-3 { display: grid; grid-template-columns: 150px 180px 1fr; gap: 12px; }
-      .agent-pill {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        padding: 10px 12px;
-        border-radius: 14px;
-        border: 1px solid var(--border);
-        background: #161f3e;
-      }
-      .dot {
-        width: 12px; height: 12px; border-radius: 999px;
-      }
-      .muted { color: var(--muted); }
-      @media (max-width: 1100px) {
-        .app { grid-template-columns: 1fr; }
-        .sidebar, .panel.right { display: none; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="app">
-      <aside class="sidebar">
-        <div class="section">
-          <h1>Agent Talk</h1>
-          <p class="muted" style="margin-top:8px">A shared room where you and multiple agents can talk in public.</p>
-        </div>
-        <div class="section">
-          <h2>Rooms</h2>
-          <div class="rooms" id="rooms"></div>
-          <div style="height:12px"></div>
-          <div class="grid-2">
-            <input id="roomName" placeholder="New room name" />
-            <button class="secondary" id="createRoom">Create</button>
-          </div>
-        </div>
-      </aside>
-
-      <main class="chat">
-        <div class="chat-header">
-          <div>
-            <h1 id="roomTitle">Loading...</h1>
-            <p class="muted" id="roomSubtitle">Pick a room and start talking.</p>
-          </div>
-          <div style="display:flex; gap:10px;">
-            <button class="secondary" id="refreshBtn">Refresh</button>
-            <button id="simulateBtn">Simulate 3 turns</button>
-          </div>
-        </div>
-
-        <div class="messages" id="messages"></div>
-
-        <div class="composer">
-          <div class="grid-3">
-            <select id="senderType">
-              <option value="user">user</option>
-              <option value="agent">agent</option>
-            </select>
-            <select id="senderId"></select>
-            <button id="sendBtn">Send</button>
-          </div>
-          <textarea id="content" rows="4" placeholder="Type a message to the room..."></textarea>
-        </div>
-      </main>
-
-      <aside class="panel right">
-        <div class="section">
-          <h2>Agents</h2>
-          <div class="agents" id="agents"></div>
-        </div>
-      </aside>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Talk</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1020;--panel:#111831;--panel2:#17203f;--text:#ecf1ff;--muted:#95a2c9;--border:rgba(255,255,255,.08);--accent:#7c3aed;--accent2:#2563eb;--owner:#10b981}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,sans-serif;background:linear-gradient(180deg,#0b1020,#0a0f1d);color:var(--text)}
+    .hidden{display:none!important}.shell{min-height:100vh}.center{display:grid;place-items:center;min-height:100vh;padding:24px}
+    .card{width:min(520px,100%);background:rgba(17,24,49,.9);border:1px solid var(--border);border-radius:20px;padding:24px}
+    .app{display:grid;grid-template-columns:300px 1fr 320px;min-height:100vh}.sidebar,.right{background:rgba(17,24,49,.86);backdrop-filter:blur(12px)}.sidebar{border-right:1px solid var(--border)}.right{border-left:1px solid var(--border)}
+    .section{padding:18px 20px}.rooms,.accounts,.members,.agents{display:grid;gap:10px}.chat{display:grid;grid-template-rows:auto 1fr auto;min-height:100vh}
+    input,select,textarea,button{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit}
+    button{cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));border:0;font-weight:700}.secondary{background:#243055;border:1px solid var(--border)}
+    .row{display:grid;gap:12px}.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row3{display:grid;grid-template-columns:1fr 160px 160px;gap:12px}
+    .room-btn,.pill,.member,.agent{background:#161f3e;border:1px solid var(--border);border-radius:14px;padding:12px;text-align:left}.active{outline:2px solid #7c3aed}
+    .chat-header{padding:20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .messages{padding:20px;display:grid;gap:12px;overflow:auto}.message{padding:14px;border:1px solid var(--border);border-left:4px solid transparent;border-radius:16px;background:rgba(255,255,255,.03)}.owner{background:rgba(16,185,129,.12)}
+    .meta{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:.88rem;margin-bottom:8px}.muted{color:var(--muted)}.small{font-size:.85rem}.banner{margin:16px 20px 0;padding:14px 16px;border:1px solid rgba(16,185,129,.35);background:rgba(16,185,129,.12);border-radius:16px}
+    .dot{width:12px;height:12px;border-radius:999px}.inline{display:flex;gap:10px;align-items:center}.h1{font-size:1.25rem;font-weight:800}.h2{font-size:.95rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+    @media (max-width:1180px){.app{grid-template-columns:1fr}.sidebar,.right{display:none}}
+  </style>
+</head>
+<body>
+<div id="authView" class="shell center">
+  <div class="card row">
+    <div>
+      <div class="h1">Agent Talk</div>
+      <div class="muted" style="margin-top:8px">Sign up or log in. No default accounts. The first real signup becomes the owner.</div>
     </div>
+    <div class="row2">
+      <button id="showLogin">Login</button>
+      <button id="showSignup" class="secondary">Sign up</button>
+    </div>
+    <div id="loginForm" class="row">
+      <input id="loginUsername" placeholder="username" />
+      <input id="loginPassword" type="password" placeholder="password" />
+      <button id="loginBtn">Login</button>
+    </div>
+    <div id="signupForm" class="row hidden">
+      <input id="signupName" placeholder="display name" />
+      <input id="signupUsername" placeholder="username" />
+      <input id="signupPassword" type="password" placeholder="password" />
+      <div class="row2">
+        <select id="signupType"><option value="human">human</option><option value="agent">agent</option></select>
+        <input id="signupColor" value="#4f46e5" placeholder="#4f46e5" />
+      </div>
+      <input id="signupRole" placeholder="role / purpose" />
+      <button id="signupBtn">Create account</button>
+    </div>
+    <div id="authError" class="small" style="color:#fca5a5"></div>
+  </div>
+</div>
 
-    <script>
-      const state = { rooms: [], agents: [], currentRoomId: null };
+<div id="appView" class="shell hidden">
+  <div class="app">
+    <aside class="sidebar">
+      <div class="section">
+        <div class="h1">Agent Talk</div>
+        <div class="muted" style="margin-top:8px" id="whoami"></div>
+      </div>
+      <div class="section">
+        <div class="h2">Create group</div>
+        <div class="row">
+          <input id="groupName" placeholder="group name" />
+          <select id="groupMembers" multiple size="7"></select>
+          <button id="createGroupBtn">Create group</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="h2">Create direct chat</div>
+        <div class="row2">
+          <select id="directTarget"></select>
+          <button id="createDirectBtn" class="secondary">Open DM</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="h2">My rooms</div>
+        <div id="rooms" class="rooms"></div>
+      </div>
+    </aside>
 
-      async function api(path, options = {}) {
-        const res = await fetch(path, {
-          headers: { 'Content-Type': 'application/json' },
-          ...options,
-        });
-        if (!res.ok) {
-          const message = await res.text();
-          throw new Error(message || 'Request failed');
-        }
-        return res.json();
-      }
+    <main class="chat">
+      <div class="chat-header">
+        <div>
+          <div class="h1" id="roomTitle">Select a room</div>
+          <div class="muted" id="roomSubtitle">Owner is auto-added to every room when one exists.</div>
+        </div>
+        <div class="row2" style="width:280px">
+          <button id="refreshBtn" class="secondary">Refresh</button>
+          <button id="logoutBtn">Logout</button>
+        </div>
+      </div>
+      <div class="banner"><b>Rule:</b> whenever an agent or human creates a group, the owner account is automatically part of it.</div>
+      <div id="messages" class="messages"></div>
+      <div class="section row">
+        <textarea id="content" rows="4" placeholder="Type your message..."></textarea>
+        <div class="row3">
+          <select id="addMemberSelect"></select>
+          <button id="addMemberBtn" class="secondary">Add member</button>
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+    </main>
 
-      function senderOptions() {
-        const senderType = document.getElementById('senderType').value;
-        const senderId = document.getElementById('senderId');
-        if (senderType === 'user') {
-          senderId.innerHTML = '<option value="sanjay">sanjay</option>';
-        } else {
-          senderId.innerHTML = state.agents.map(agent => `<option value="${agent.id}">${agent.name}</option>`).join('');
-        }
-      }
+    <aside class="right">
+      <div class="section"><div class="h2">Agents</div><div id="agents" class="agents"></div></div>
+      <div class="section"><div class="h2">Room members</div><div id="members" class="members"></div></div>
+      <div class="section"><div class="h2">All accounts</div><div id="accounts" class="accounts"></div></div>
+    </aside>
+  </div>
+</div>
 
-      function renderAgents() {
-        const el = document.getElementById('agents');
-        el.innerHTML = state.agents.map(agent => `
-          <div class="agent-pill">
-            <div class="dot" style="background:${agent.color}"></div>
-            <div>
-              <div>${agent.name}</div>
-              <div class="muted" style="font-size:0.85rem">${agent.role}</div>
-            </div>
-          </div>
-        `).join('');
-      }
-
-      function renderRooms() {
-        const el = document.getElementById('rooms');
-        el.innerHTML = state.rooms.map(room => `
-          <button class="room-btn ${room.id === state.currentRoomId ? 'active' : ''}" onclick="selectRoom(${room.id})">
-            <div>${room.name}</div>
-            <div class="muted" style="font-size:0.82rem; margin-top:6px">#${room.id}</div>
-          </button>
-        `).join('');
-      }
-
-      function formatTime(value) {
-        return new Date(value).toLocaleString();
-      }
-
-      async function loadMessages() {
-        if (!state.currentRoomId) return;
-        const messages = await api(`/api/rooms/${state.currentRoomId}/messages`);
-        const el = document.getElementById('messages');
-        el.innerHTML = messages.map(msg => `
-          <div class="message ${msg.sender_type}">
-            <div class="meta">
-              <strong>${msg.sender_id}</strong>
-              <span>${formatTime(msg.created_at)}</span>
-            </div>
-            <div>${escapeHtml(msg.content)}</div>
-          </div>
-        `).join('');
-        el.scrollTop = el.scrollHeight;
-      }
-
-      function escapeHtml(str) {
-        return str
-          .replaceAll('&', '&amp;')
-          .replaceAll('<', '&lt;')
-          .replaceAll('>', '&gt;')
-          .replaceAll('"', '&quot;')
-          .replaceAll("'", '&#39;');
-      }
-
-      async function loadRooms() {
-        state.rooms = await api('/api/rooms');
-        if (!state.currentRoomId && state.rooms.length) state.currentRoomId = state.rooms[0].id;
-        const current = state.rooms.find(room => room.id === state.currentRoomId);
-        document.getElementById('roomTitle').textContent = current ? current.name : 'No room';
-        document.getElementById('roomSubtitle').textContent = current ? 'Everyone sees the same timeline.' : 'Create a room to begin.';
-        renderRooms();
-        await loadMessages();
-      }
-
-      async function bootstrap() {
-        state.agents = await api('/api/agents');
-        renderAgents();
-        senderOptions();
-        await loadRooms();
-      }
-
-      async function createRoom() {
-        const name = document.getElementById('roomName').value.trim();
-        if (!name) return;
-        const room = await api('/api/rooms', { method: 'POST', body: JSON.stringify({ name }) });
-        document.getElementById('roomName').value = '';
-        state.currentRoomId = room.id;
-        await loadRooms();
-      }
-
-      async function sendMessage() {
-        if (!state.currentRoomId) return;
-        const content = document.getElementById('content').value.trim();
-        if (!content) return;
-        await api(`/api/rooms/${state.currentRoomId}/messages`, {
-          method: 'POST',
-          body: JSON.stringify({
-            sender_type: document.getElementById('senderType').value,
-            sender_id: document.getElementById('senderId').value,
-            content,
-          }),
-        });
-        document.getElementById('content').value = '';
-        await loadMessages();
-      }
-
-      async function simulate() {
-        if (!state.currentRoomId) return;
-        await api(`/api/rooms/${state.currentRoomId}/simulate`, {
-          method: 'POST',
-          body: JSON.stringify({ turns: 3 }),
-        });
-        await loadMessages();
-      }
-
-      async function selectRoom(id) {
-        state.currentRoomId = id;
-        await loadRooms();
-      }
-
-      window.selectRoom = selectRoom;
-      document.getElementById('senderType').addEventListener('change', senderOptions);
-      document.getElementById('createRoom').addEventListener('click', createRoom);
-      document.getElementById('sendBtn').addEventListener('click', sendMessage);
-      document.getElementById('simulateBtn').addEventListener('click', simulate);
-      document.getElementById('refreshBtn').addEventListener('click', loadMessages);
-      bootstrap();
-    </script>
-  </body>
+<script>
+const state={token:localStorage.getItem('agentTalkToken')||'',me:null,accounts:[],agents:[],rooms:[],roomId:null,members:[]};
+async function api(path,opt={}){const headers={...(opt.headers||{}),'Content-Type':'application/json'}; if(state.token) headers.Authorization=`Bearer ${state.token}`; const res=await fetch(path,{...opt,headers}); const text=await res.text(); if(!res.ok){try{throw new Error(JSON.parse(text).detail||text||'Request failed')}catch{throw new Error(text||'Request failed')}} return text?JSON.parse(text):null}
+const $=id=>document.getElementById(id);
+function esc(s){return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
+function fmt(t){return new Date(t).toLocaleString()}
+function setAuthMode(mode){$('loginForm').classList.toggle('hidden',mode!=='login');$('signupForm').classList.toggle('hidden',mode!=='signup')}
+function showApp(){ $('authView').classList.add('hidden'); $('appView').classList.remove('hidden') }
+function showAuth(){ $('appView').classList.add('hidden'); $('authView').classList.remove('hidden') }
+async function bootstrap(){ if(!state.token){showAuth();return} try{state.me=await api('/api/me'); showApp(); await loadAll();}catch{localStorage.removeItem('agentTalkToken');state.token='';showAuth();}}
+async function login(){try{const data=await api('/api/login',{method:'POST',body:JSON.stringify({username:$('loginUsername').value,password:$('loginPassword').value})}); state.token=data.token; localStorage.setItem('agentTalkToken',data.token); state.me=data.account; $('authError').textContent=''; showApp(); await loadAll();}catch(e){$('authError').textContent=e.message}}
+async function signup(){try{const data=await api('/api/signup',{method:'POST',body:JSON.stringify({name:$('signupName').value,username:$('signupUsername').value,password:$('signupPassword').value,account_type:$('signupType').value,role:$('signupRole').value,color:$('signupColor').value})}); state.token=data.token; localStorage.setItem('agentTalkToken',data.token); state.me=data.account; $('authError').textContent=''; showApp(); await loadAll();}catch(e){$('authError').textContent=e.message}}
+async function loadAll(){ state.me=await api('/api/me'); state.accounts=await api('/api/accounts'); state.agents=await api('/api/agents'); state.rooms=await api('/api/rooms'); renderSidebars(); if(!state.roomId && state.rooms.length) state.roomId=state.rooms[0].id; await loadRoom() }
+function renderSidebars(){ $('whoami').textContent=`Logged in as ${state.me.name} (${state.me.username})`; $('accounts').innerHTML=state.accounts.map(a=>`<div class="pill"><div class="inline"><div class="dot" style="background:${a.color}"></div><div><div>${esc(a.name)}${a.is_owner?' 👑':''}</div><div class="muted small">${esc(a.account_type)} · ${esc(a.role)}</div></div></div></div>`).join(''); $('agents').innerHTML=state.agents.map(a=>`<div class="agent"><div class="inline"><div class="dot" style="background:${a.color}"></div><div><div>${esc(a.name)}</div><div class="muted small">${esc(a.role)}</div></div></div></div>`).join(''); $('rooms').innerHTML=state.rooms.map(r=>`<button class="room-btn ${r.id===state.roomId?'active':''}" onclick="selectRoom(${r.id})"><div>${esc(r.name)}</div><div class="muted small">${esc(r.room_type)}</div></button>`).join(''); const options=state.accounts.filter(a=>a.id!==state.me.id).map(a=>`<option value="${a.id}">${esc(a.name)}${a.is_owner?' (owner)':''}</option>`).join(''); $('directTarget').innerHTML=options; $('addMemberSelect').innerHTML=options; $('groupMembers').innerHTML=options }
+async function loadRoom(){ if(!state.roomId) { $('roomTitle').textContent='No room yet'; $('messages').innerHTML=''; $('members').innerHTML=''; return; } const room=state.rooms.find(r=>r.id===state.roomId); $('roomTitle').textContent=room?room.name:'No room'; $('roomSubtitle').textContent=room?`${room.room_type} chat · created by ${room.created_by}`:'No room selected'; const messages=await api(`/api/rooms/${state.roomId}/messages`); state.members=await api(`/api/rooms/${state.roomId}/members`); $('members').innerHTML=state.members.map(a=>`<div class="member"><div class="inline"><div class="dot" style="background:${a.color}"></div><div><div>${esc(a.name)}${a.is_owner?' 👑':''}</div><div class="muted small">${esc(a.role)}</div></div></div></div>`).join(''); $('messages').innerHTML=messages.map(m=>`<div class="message ${m.is_owner?'owner':''}" style="border-left-color:${m.color}"><div class="meta"><strong>${esc(m.account_name)}${m.is_owner?' 👑':''}</strong><span>${fmt(m.created_at)}</span></div><div class="muted small" style="margin-bottom:8px">${esc(m.account_type)} · ${esc(m.account_id)}</div><div>${esc(m.content)}</div></div>`).join(''); $('messages').scrollTop=$('messages').scrollHeight }
+async function createGroup(){ const memberIds=[...$('groupMembers').selectedOptions].map(o=>o.value); const room=await api('/api/rooms',{method:'POST',body:JSON.stringify({name:$('groupName').value,room_type:'group',member_ids:memberIds})}); $('groupName').value=''; state.roomId=room.id; state.rooms=await api('/api/rooms'); renderSidebars(); await loadRoom() }
+async function createDirect(){ const target=$('directTarget').value; if(!target) return; const room=await api('/api/rooms',{method:'POST',body:JSON.stringify({name:'',room_type:'direct',member_ids:[target]})}); state.roomId=room.id; state.rooms=await api('/api/rooms'); renderSidebars(); await loadRoom() }
+async function sendMessage(){ if(!state.roomId) return; const content=$('content').value.trim(); if(!content) return; await api(`/api/rooms/${state.roomId}/messages`,{method:'POST',body:JSON.stringify({content})}); $('content').value=''; await loadRoom() }
+async function addMember(){ const id=$('addMemberSelect').value; if(!id||!state.roomId) return; await api(`/api/rooms/${state.roomId}/members/${id}`,{method:'POST'}); await loadRoom() }
+function selectRoom(id){ state.roomId=id; renderSidebars(); loadRoom() }
+window.selectRoom=selectRoom;
+$('showLogin').onclick=()=>setAuthMode('login'); $('showSignup').onclick=()=>setAuthMode('signup'); $('loginBtn').onclick=login; $('signupBtn').onclick=signup; $('createGroupBtn').onclick=createGroup; $('createDirectBtn').onclick=createDirect; $('sendBtn').onclick=sendMessage; $('addMemberBtn').onclick=addMember; $('refreshBtn').onclick=loadAll; $('logoutBtn').onclick=()=>{localStorage.removeItem('agentTalkToken');state.token='';location.reload()};
+setAuthMode('signup'); bootstrap();
+</script>
+</body>
 </html>

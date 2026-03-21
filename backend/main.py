@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import random
+import hashlib
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, create_engine, select
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,13 +26,28 @@ class Base(DeclarativeBase):
     pass
 
 
-class Agent(Base):
-    __tablename__ = "agents"
+class Account(Base):
+    __tablename__ = "accounts"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True)
-    role: Mapped[str] = mapped_column(String(100))
+    username: Mapped[str] = mapped_column(String(50), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(128))
+    account_type: Mapped[str] = mapped_column(String(20))
+    role: Mapped[str] = mapped_column(String(120))
     color: Mapped[str] = mapped_column(String(20), default="#4f46e5")
+    is_owner: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    account: Mapped[Account] = relationship()
 
 
 class Room(Base):
@@ -39,8 +55,23 @@ class Room(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(120), unique=True)
+    room_type: Mapped[str] = mapped_column(String(20), default="group")
+    created_by: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    memberships: Mapped[list["RoomMembership"]] = relationship(back_populates="room", cascade="all, delete-orphan")
     messages: Mapped[list["Message"]] = relationship(back_populates="room", cascade="all, delete-orphan")
+
+
+class RoomMembership(Base):
+    __tablename__ = "room_memberships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"))
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    room: Mapped[Room] = relationship(back_populates="memberships")
+    account: Mapped[Account] = relationship()
 
 
 class Message(Base):
@@ -48,66 +79,100 @@ class Message(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"))
-    sender_type: Mapped[str] = mapped_column(String(20))
-    sender_id: Mapped[str] = mapped_column(String(50))
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     room: Mapped[Room] = relationship(back_populates="messages")
+    account: Mapped[Account] = relationship()
 
 
-AGENT_SEEDS = [
-    {"id": "orchestrator", "name": "Orchestrator", "role": "Keeps the room coordinated", "color": "#0f766e"},
-    {"id": "admin", "name": "Admin", "role": "Ops, config, deployments", "color": "#dc2626"},
-    {"id": "developer", "name": "Developer", "role": "Builds product and fixes bugs", "color": "#2563eb"},
-    {"id": "research", "name": "Research", "role": "Finds facts, compares options", "color": "#7c3aed"},
-    {"id": "reviewer", "name": "Reviewer", "role": "Challenges decisions and tests assumptions", "color": "#ea580c"},
-]
+class AttentionEvent(Base):
+    __tablename__ = "attention_events"
 
-DEFAULT_ROOM_NAME = "Mission Control"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"), index=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"))
+    message_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(50), default="message.created")
+    preview: Mapped[str] = mapped_column(String(500), default="")
+    consumed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    account: Mapped[Account] = relationship()
 
 
-class AgentOut(BaseModel):
+class AccountOut(BaseModel):
     id: str
     name: str
+    username: str
+    account_type: str
     role: str
     color: str
+    is_owner: bool
+
+
+class SessionOut(BaseModel):
+    token: str
+    account: AccountOut
+
+
+class SignupRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=4, max_length=100)
+    account_type: Literal["human", "agent"] = "human"
+    role: str = Field(..., min_length=1, max_length=120)
+    color: str = Field(default="#4f46e5", min_length=4, max_length=20)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class RoomCreate(BaseModel):
+    name: str = Field(default="", max_length=120)
+    room_type: Literal["group", "direct"] = "group"
+    member_ids: list[str] = Field(default_factory=list)
 
 
 class RoomOut(BaseModel):
     id: int
     name: str
+    room_type: str
+    created_by: str
     created_at: datetime
 
 
 class MessageCreate(BaseModel):
-    sender_type: Literal["user", "agent"] = "user"
-    sender_id: str = Field(..., min_length=1, max_length=50)
     content: str = Field(..., min_length=1, max_length=4000)
 
 
 class MessageOut(BaseModel):
     id: int
     room_id: int
-    sender_type: str
-    sender_id: str
+    account_id: str
+    account_name: str
+    account_type: str
+    is_owner: bool
+    color: str
     content: str
     created_at: datetime
 
 
-class SimulateRequest(BaseModel):
-    turns: int = Field(default=3, ge=1, le=12)
+class AttentionEventOut(BaseModel):
+    id: int
+    account_id: str
+    room_id: int
+    message_id: int | None
+    event_type: str
+    preview: str
+    consumed: bool
+    created_at: datetime
 
 
-app = FastAPI(title="Agent Talk", version="0.1.0")
+app = FastAPI(title="Agent Talk", version="0.3.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -118,28 +183,105 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def normalize_id(value: str) -> str:
+    return "-".join(value.strip().lower().split())
+
+
+def account_out(account: Account) -> AccountOut:
+    return AccountOut(
+        id=account.id,
+        name=account.name,
+        username=account.username,
+        account_type=account.account_type,
+        role=account.role,
+        color=account.color,
+        is_owner=account.is_owner,
+    )
+
+
+def message_out(message: Message) -> MessageOut:
+    return MessageOut(
+        id=message.id,
+        room_id=message.room_id,
+        account_id=message.account_id,
+        account_name=message.account.name,
+        account_type=message.account.account_type,
+        is_owner=message.account.is_owner,
+        color=message.account.color,
+        content=message.content,
+        created_at=message.created_at,
+    )
+
+
+def owner_account(db: Session) -> Account | None:
+    return db.scalar(select(Account).where(Account.is_owner.is_(True)))
+
+
+def ensure_member(db: Session, room_id: int, account_id: str) -> None:
+    exists = db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == account_id))
+    if not exists:
+        db.add(RoomMembership(room_id=room_id, account_id=account_id))
+        db.flush()
+
+
+def ensure_owner_in_room(db: Session, room_id: int) -> None:
+    owner = owner_account(db)
+    if owner:
+        ensure_member(db, room_id, owner.id)
+
+
+def create_attention_events(db: Session, room_id: int, sender_id: str, message_id: int | None, preview: str, event_type: str = "message.created") -> None:
+    members = db.scalars(select(RoomMembership).where(RoomMembership.room_id == room_id)).all()
+    for membership in members:
+        if membership.account_id == sender_id:
+            continue
+        db.add(
+            AttentionEvent(
+                account_id=membership.account_id,
+                room_id=room_id,
+                message_id=message_id,
+                event_type=event_type,
+                preview=preview[:500],
+            )
+        )
+
+
+def get_current_account(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> Account:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing auth token")
+    token = authorization.removeprefix("Bearer ").strip()
+    auth = db.scalar(select(AuthSession).where(AuthSession.token == token))
+    if not auth:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    return auth.account
+
+
+def reset_legacy_db_if_needed() -> None:
+    if not DB_PATH.exists():
+        return
+    with engine.connect() as conn:
+        room_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(rooms)")}
+        account_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(accounts)")}
+    if (room_columns and ("room_type" not in room_columns or "created_by" not in room_columns)) or (account_columns and "username" not in account_columns):
+        DB_PATH.unlink(missing_ok=True)
+
+
 @app.on_event("startup")
 def startup() -> None:
+    reset_legacy_db_if_needed()
     Base.metadata.create_all(bind=engine)
-    with SessionLocal() as db:
-        existing = {agent.id for agent in db.scalars(select(Agent)).all()}
-        for seed in AGENT_SEEDS:
-            if seed["id"] not in existing:
-                db.add(Agent(**seed))
-        room = db.scalar(select(Room).where(Room.name == DEFAULT_ROOM_NAME))
-        if room is None:
-            room = Room(name=DEFAULT_ROOM_NAME)
-            db.add(room)
-            db.flush()
-            db.add(
-                Message(
-                    room_id=room.id,
-                    sender_type="agent",
-                    sender_id="orchestrator",
-                    content="Room is live. Bring the agents in.",
-                )
-            )
-        db.commit()
 
 
 @app.get("/api/health")
@@ -147,118 +289,223 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/agents", response_model=list[AgentOut])
-def list_agents(db: Session = Depends(get_db)):
-    return db.scalars(select(Agent).order_by(Agent.name)).all()
+@app.post("/api/signup", response_model=SessionOut)
+def signup(payload: SignupRequest, db: Session = Depends(get_db)):
+    username = normalize_id(payload.username)
+    name = payload.name.strip()
+    if not username or not name:
+        raise HTTPException(status_code=400, detail="Name and username are required")
+    if db.scalar(select(Account).where(Account.username == username)):
+        raise HTTPException(status_code=400, detail="Username already exists")
+    if db.scalar(select(Account).where(Account.name == name)):
+        raise HTTPException(status_code=400, detail="Display name already exists")
+
+    account_id = normalize_id(name)
+    base_id = account_id
+    i = 2
+    while db.get(Account, account_id):
+        account_id = f"{base_id}-{i}"
+        i += 1
+
+    is_first_account = db.scalar(select(Account.id).limit(1)) is None
+    is_owner = is_first_account
+    normalized_role = payload.role.strip()
+    if is_owner:
+        normalized_role = "Owner"
+
+    account = Account(
+        id=account_id,
+        name=name,
+        username=username,
+        password_hash=hash_password(payload.password),
+        account_type=payload.account_type,
+        role=normalized_role,
+        color=payload.color.strip(),
+        is_owner=is_owner,
+    )
+    db.add(account)
+    db.flush()
+
+    if is_owner:
+        room = Room(name="Mission Control", room_type="group", created_by=account.id)
+        db.add(room)
+        db.flush()
+        ensure_member(db, room.id, account.id)
+        db.add(Message(room_id=room.id, account_id=account.id, content="Mission Control is live."))
+    else:
+        owner = owner_account(db)
+        if owner:
+            room = db.scalar(select(Room).where(Room.name == "Mission Control"))
+            if room:
+                ensure_member(db, room.id, account.id)
+
+    token = secrets.token_urlsafe(32)
+    db.add(AuthSession(token=token, account_id=account.id))
+    db.commit()
+    db.refresh(account)
+    return SessionOut(token=token, account=account_out(account))
+
+
+@app.post("/api/login", response_model=SessionOut)
+def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    username = normalize_id(payload.username)
+    account = db.scalar(select(Account).where(Account.username == username))
+    if not account or account.password_hash != hash_password(payload.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = secrets.token_urlsafe(32)
+    db.add(AuthSession(token=token, account_id=account.id))
+    db.commit()
+    return SessionOut(token=token, account=account_out(account))
+
+
+@app.get("/api/me", response_model=AccountOut)
+def me(current: Account = Depends(get_current_account)):
+    return account_out(current)
+
+
+@app.get("/api/accounts", response_model=list[AccountOut])
+def list_accounts(current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    accounts = db.scalars(select(Account).order_by(Account.is_owner.desc(), Account.name.asc())).all()
+    return [account_out(a) for a in accounts]
+
+
+@app.get("/api/agents", response_model=list[AccountOut])
+def list_agents(current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    agents = db.scalars(select(Account).where(Account.account_type == "agent").order_by(Account.name.asc())).all()
+    return [account_out(a) for a in agents]
 
 
 @app.get("/api/rooms", response_model=list[RoomOut])
-def list_rooms(db: Session = Depends(get_db)):
-    return db.scalars(select(Room).order_by(Room.created_at.desc())).all()
-
-
-class RoomCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=120)
+def list_rooms(current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    memberships = db.scalars(select(RoomMembership).where(RoomMembership.account_id == current.id).order_by(RoomMembership.joined_at.desc())).all()
+    rooms = [m.room for m in memberships]
+    return [RoomOut(id=r.id, name=r.name, room_type=r.room_type, created_by=r.created_by, created_at=r.created_at) for r in rooms]
 
 
 @app.post("/api/rooms", response_model=RoomOut)
-def create_room(payload: RoomCreate, db: Session = Depends(get_db)):
-    existing = db.scalar(select(Room).where(Room.name == payload.name.strip()))
-    if existing:
-        return existing
-    room = Room(name=payload.name.strip())
-    db.add(room)
+def create_room(payload: RoomCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    if payload.room_type == "direct":
+        if len(payload.member_ids) != 1:
+            raise HTTPException(status_code=400, detail="Direct chat needs exactly one other member")
+        other = db.get(Account, payload.member_ids[0])
+        if not other:
+            raise HTTPException(status_code=404, detail="Account not found")
+        ids = sorted({current.id, other.id, *( [owner_account(db).id] if owner_account(db) else [] )})
+        direct_name = "DM: " + " / ".join(ids)
+        existing = db.scalar(select(Room).where(Room.name == direct_name))
+        if existing:
+            return RoomOut(id=existing.id, name=existing.name, room_type=existing.room_type, created_by=existing.created_by, created_at=existing.created_at)
+        room = Room(name=direct_name, room_type="direct", created_by=current.id)
+        db.add(room)
+        db.flush()
+        for member_id in ids:
+            ensure_member(db, room.id, member_id)
+    else:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Group name is required")
+        room = Room(name=name, room_type="group", created_by=current.id)
+        db.add(room)
+        db.flush()
+        ensure_member(db, room.id, current.id)
+        ensure_owner_in_room(db, room.id)
+        for member_id in payload.member_ids:
+            member = db.get(Account, member_id)
+            if member:
+                ensure_member(db, room.id, member.id)
+    create_attention_events(db, room.id, current.id, None, f"New {room.room_type} room created: {room.name}", event_type="room.created")
     db.commit()
-    db.refresh(room)
-    return room
+    return RoomOut(id=room.id, name=room.name, room_type=room.room_type, created_by=room.created_by, created_at=room.created_at)
+
+
+@app.get("/api/rooms/{room_id}/members", response_model=list[AccountOut])
+def room_members(room_id: int, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == current.id)):
+        raise HTTPException(status_code=403, detail="Not in this room")
+    members = db.scalars(select(RoomMembership).where(RoomMembership.room_id == room_id).order_by(RoomMembership.joined_at.asc())).all()
+    return [account_out(m.account) for m in members]
+
+
+@app.post("/api/rooms/{room_id}/members/{account_id}")
+def add_room_member(room_id: int, account_id: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    room = db.get(Room, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == current.id)):
+        raise HTTPException(status_code=403, detail="Not in this room")
+    member = db.get(Account, account_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Account not found")
+    ensure_member(db, room_id, account_id)
+    ensure_owner_in_room(db, room_id)
+    create_attention_events(db, room_id, current.id, None, f"{member.name} was added to room {room.name}", event_type="room.member_added")
+    db.commit()
+    return {"status": "ok"}
 
 
 @app.get("/api/rooms/{room_id}/messages", response_model=list[MessageOut])
-def list_messages(room_id: int, db: Session = Depends(get_db)):
-    room = db.get(Room, room_id)
-    if room is None:
-        raise HTTPException(status_code=404, detail="Room not found")
-    return db.scalars(select(Message).where(Message.room_id == room_id).order_by(Message.created_at.asc(), Message.id.asc())).all()
+def room_messages(room_id: int, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == current.id)):
+        raise HTTPException(status_code=403, detail="Not in this room")
+    messages = db.scalars(select(Message).where(Message.room_id == room_id).order_by(Message.created_at.asc(), Message.id.asc())).all()
+    return [message_out(m) for m in messages]
 
 
 @app.post("/api/rooms/{room_id}/messages", response_model=MessageOut)
-def create_message(room_id: int, payload: MessageCreate, db: Session = Depends(get_db)):
-    room = db.get(Room, room_id)
-    if room is None:
-        raise HTTPException(status_code=404, detail="Room not found")
-    if payload.sender_type == "agent" and db.get(Agent, payload.sender_id) is None:
-        raise HTTPException(status_code=400, detail="Unknown agent")
-
-    message = Message(room_id=room_id, sender_type=payload.sender_type, sender_id=payload.sender_id, content=payload.content.strip())
+def create_message(room_id: int, payload: MessageCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == current.id)):
+        raise HTTPException(status_code=403, detail="Not in this room")
+    ensure_owner_in_room(db, room_id)
+    message = Message(room_id=room_id, account_id=current.id, content=payload.content.strip())
     db.add(message)
+    db.flush()
+    create_attention_events(db, room_id, current.id, message.id, message.content)
     db.commit()
     db.refresh(message)
-    return message
+    return message_out(message)
 
 
-@app.post("/api/rooms/{room_id}/simulate", response_model=list[MessageOut])
-def simulate_room(room_id: int, payload: SimulateRequest, db: Session = Depends(get_db)):
-    room = db.get(Room, room_id)
-    if room is None:
-        raise HTTPException(status_code=404, detail="Room not found")
+@app.get("/api/search")
+def search_messages(query: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    memberships = db.scalars(select(RoomMembership).where(RoomMembership.account_id == current.id)).all()
+    room_ids = [m.room_id for m in memberships]
+    if not room_ids:
+        return []
+    messages = db.scalars(select(Message).where(Message.room_id.in_(room_ids)).order_by(Message.created_at.desc())).all()
+    q = query.strip().lower()
+    filtered = [m for m in messages if q in m.content.lower() or q in m.account.name.lower() or q in m.room.name.lower()]
+    return [message_out(m).model_dump() for m in filtered[:50]]
 
-    agents = db.scalars(select(Agent).order_by(Agent.name)).all()
-    if len(agents) < 2:
-        raise HTTPException(status_code=400, detail="Need at least two agents")
 
-    latest_messages = db.scalars(
-        select(Message).where(Message.room_id == room_id).order_by(Message.created_at.desc(), Message.id.desc()).limit(8)
+@app.get("/api/attention", response_model=list[AttentionEventOut])
+def attention_feed(current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    events = db.scalars(
+        select(AttentionEvent)
+        .where(AttentionEvent.account_id == current.id, AttentionEvent.consumed.is_(False))
+        .order_by(AttentionEvent.created_at.asc(), AttentionEvent.id.asc())
     ).all()
-    context = list(reversed(latest_messages))
+    return [AttentionEventOut.model_validate({
+        "id": e.id,
+        "account_id": e.account_id,
+        "room_id": e.room_id,
+        "message_id": e.message_id,
+        "event_type": e.event_type,
+        "preview": e.preview,
+        "consumed": e.consumed,
+        "created_at": e.created_at,
+    }) for e in events]
 
-    created: list[Message] = []
-    for _ in range(payload.turns):
-        speaker = random.choice(agents)
-        reply = generate_agent_reply(speaker, agents, context)
-        message = Message(room_id=room_id, sender_type="agent", sender_id=speaker.id, content=reply)
-        db.add(message)
-        db.flush()
-        created.append(message)
-        context.append(message)
-        context = context[-8:]
 
+@app.post("/api/attention/{event_id}/ack")
+def ack_attention(event_id: int, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    event = db.get(AttentionEvent, event_id)
+    if not event or event.account_id != current.id:
+        raise HTTPException(status_code=404, detail="Event not found")
+    event.consumed = True
     db.commit()
-    for message in created:
-        db.refresh(message)
-    return created
+    return {"status": "ok"}
 
 
 @app.get("/", include_in_schema=False)
 def root() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
-
-
-def generate_agent_reply(speaker: Agent, agents: list[Agent], context: list[Message]) -> str:
-    last = context[-1].content if context else ""
-    peers = [agent for agent in agents if agent.id != speaker.id]
-    target = random.choice(peers)
-
-    lower = last.lower()
-    if any(word in lower for word in ["bug", "error", "fix", "issue"]):
-        ideas = [
-            f"@{target.id} I see a failure pattern. I want logs, a repro case, and a rollback plan before we touch prod.",
-            f"I’m mapping the problem edges. @{target.id}, can you confirm whether this is app logic or infra drift?",
-        ]
-    elif any(word in lower for word in ["design", "ui", "frontend", "screen"]):
-        ideas = [
-            f"The interface needs fewer competing actions. @{target.id}, keep the main path obvious and collapse the rest.",
-            f"I’d simplify this into one primary action, one context panel, and live room updates.",
-        ]
-    elif any(word in lower for word in ["deploy", "ship", "release", "prod"]):
-        ideas = [
-            f"Before release, I want a migration check, smoke test, and visible rollback steps in the room.",
-            f"Shipping is fine, but only if @{target.id} signs off on health checks and database safety.",
-        ]
-    else:
-        ideas = [
-            f"@{target.id} Here’s my take: keep the room transparent, make sender identity obvious, and let humans jump in anytime.",
-            f"I’m tracking the thread. The useful move now is to turn this into a small concrete task list and assign ownership.",
-            f"We should preserve context in the timeline so nobody asks the same question twice.",
-            f"I want the user visible in the same room as the agents, not hidden behind separate channels.",
-        ]
-    return f"[{speaker.name}] {random.choice(ideas)}"
