@@ -32,6 +32,25 @@
       --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
+    body.light {
+      color-scheme: light;
+      --bg: #eef4ff;
+      --bg-accent: linear-gradient(180deg, #f8fbff 0%, #edf4ff 48%, #e8f0fb 100%);
+      --panel: rgba(255, 255, 255, 0.92);
+      --panel-strong: rgba(255, 255, 255, 0.98);
+      --panel-soft: rgba(243, 247, 255, 0.92);
+      --panel-elevated: rgba(236, 242, 255, 0.96);
+      --panel-input: rgba(247, 250, 255, 0.98);
+      --border: rgba(71, 85, 105, 0.14);
+      --border-strong: rgba(71, 85, 105, 0.24);
+      --text: #10203a;
+      --text-soft: #334a6b;
+      --muted: #64748b;
+      --danger: #dc2626;
+      --owner: rgba(16, 185, 129, 0.12);
+      --shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+    }
+
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
@@ -77,7 +96,7 @@
       outline: none;
       transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
     }
-    textarea { resize: vertical; min-height: 120px; line-height: 1.5; }
+    textarea { resize: vertical; min-height: 72px; line-height: 1.45; }
     input::placeholder, textarea::placeholder { color: #7f90b0; }
     input:focus, select:focus, textarea:focus {
       border-color: rgba(96, 165, 250, 0.55);
@@ -255,6 +274,12 @@
       border-radius: 18px;
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.07);
+    }
+    .sidebar .card-subtle {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    }
+    .sidebar .toolbar-input {
+      margin-top: 0;
     }
     .toolbar-input { margin-top: 12px; }
     .desktop-only { display: block; }
@@ -657,8 +682,8 @@
                   <div class="label">Create group</div>
                   <div class="helper-text">Name a room and pick members. Owner inclusion still happens automatically.</div>
                 </div>
-                <input id="groupName" placeholder="group name" />
-                <select id="groupMembers" multiple size="7"></select>
+                <input id="groupName" placeholder="Group name" />
+                <select id="groupMembers" multiple size="6"></select>
                 <button id="createGroupBtn">Create group</button>
               </div>
               <div class="card-subtle row">
@@ -697,6 +722,7 @@
               </div>
             </div>
             <div class="header-actions">
+              <button id="themeToggleBtn" class="secondary">Light theme</button>
               <button id="expandLeftBtn" class="secondary hidden">Show left</button>
               <button id="expandRightBtn" class="secondary hidden">Show right</button>
               <button id="refreshBtn" class="secondary">Refresh</button>
@@ -725,7 +751,7 @@
                 <div class="label">Message composer</div>
                 <div class="helper-text">Uses the existing message API. No backend behavior changed.</div>
               </div>
-              <textarea id="content" rows="4" placeholder="Type your message…"></textarea>
+              <textarea id="content" rows="2" placeholder="Type your message…"></textarea>
               <div class="row3">
                 <select id="addMemberSelect"></select>
                 <button id="addMemberBtn" class="secondary">Add member</button>
@@ -790,7 +816,8 @@
       rightCollapsed: false,
       refreshTimer: null,
       roomRefreshPromise: null,
-      reconnectTimers: { room: null, events: null }
+      reconnectTimers: { room: null, events: null },
+      theme: localStorage.getItem('agentTalkTheme') || 'dark'
     };
 
     async function api(path, opt = {}) {
@@ -819,6 +846,18 @@
     const shortFmt = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
     const initials = (value) => String(value || '?').trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() || '').join('') || '?';
     const roomLabel = (roomType) => roomType === 'direct' ? 'Direct message' : 'Group room';
+
+    function applyTheme() {
+      document.body.classList.toggle('light', state.theme === 'light');
+      const btn = $('themeToggleBtn');
+      if (btn) btn.textContent = state.theme === 'light' ? 'Dark theme' : 'Light theme';
+    }
+
+    function toggleTheme() {
+      state.theme = state.theme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('agentTalkTheme', state.theme);
+      applyTheme();
+    }
 
     function setAuthMode(mode) {
       const login = mode === 'login';
@@ -1304,6 +1343,7 @@
     $('collapseRightBtn').onclick = toggleRightCollapse;
     $('expandLeftBtn').onclick = toggleLeftCollapse;
     $('expandRightBtn').onclick = toggleRightCollapse;
+    $('themeToggleBtn').onclick = toggleTheme;
     $('roomSearch').addEventListener('input', (event) => {
       state.roomSearch = event.target.value;
       renderSidebars();
@@ -1324,6 +1364,7 @@
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') sendMessage();
     });
 
+    applyTheme();
     setAuthMode('signup');
     applyLayoutState();
     bootstrap();
