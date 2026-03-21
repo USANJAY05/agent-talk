@@ -29,6 +29,8 @@ import {
   ThemeProvider,
   Toolbar,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
   alpha,
   createTheme,
@@ -155,6 +157,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [roomSearch, setRoomSearch] = useState('');
   const [accountSearch, setAccountSearch] = useState('');
+  const [roomFilter, setRoomFilter] = useState('all');
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [mobileRoomsOpen, setMobileRoomsOpen] = useState(false);
@@ -213,12 +216,14 @@ export default function App() {
   const filteredRooms = useMemo(() => {
     const q = roomSearch.trim().toLowerCase();
     return state.rooms.filter((room) => {
+      if (roomFilter === 'groups' && room.room_type !== 'group') return false;
+      if (roomFilter === 'direct' && room.room_type !== 'direct') return false;
       if (!q) return true;
       return [displayRoomName(room, state.me, state.accounts), room.room_type, room.created_by]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
     });
-  }, [roomSearch, state.rooms, state.me, state.accounts]);
+  }, [roomSearch, roomFilter, state.rooms, state.me, state.accounts]);
 
   const selectableAccounts = useMemo(
     () => state.accounts.filter((account) => account.id !== state.me?.id),
@@ -416,7 +421,7 @@ export default function App() {
   };
 
   const leftSidebar = (
-    <Stack spacing={2} sx={{ p: 2, width: DRAWER_WIDTH }}>
+    <Stack spacing={2} sx={{ p: 2, width: DRAWER_WIDTH, height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 4 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
           <Stack direction="row" spacing={1.5} alignItems="center">
@@ -447,14 +452,15 @@ export default function App() {
 
       <SectionCard title="Create chats" action={<Chip size="small" label={state.accounts.length} />}>
         <Stack spacing={2}>
-          <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+          <Typography variant="body2" color="text.secondary">Create groups and direct chats from the left side.</Typography>
+          <TextField size="small" label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
           <Autocomplete
             multiple
             options={selectableAccounts}
             value={groupMembers}
             onChange={(_, value) => setGroupMembers(value)}
-            getOptionLabel={(option) => option.name}
-            renderInput={(params) => <TextField {...params} label="Group members" placeholder="Pick people" />}
+            getOptionLabel={(option) => `${option.name} (${option.account_type})`}
+            renderInput={(params) => <TextField {...params} size="small" label="Group members" placeholder="Pick people" />}
           />
           <Button startIcon={<GroupAdd />} onClick={createGroup} disabled={!groupName.trim()}>
             Create group
@@ -463,8 +469,8 @@ export default function App() {
             options={selectableAccounts}
             value={directTarget}
             onChange={(_, value) => setDirectTarget(value)}
-            getOptionLabel={(option) => option.name}
-            renderInput={(params) => <TextField {...params} label="Open direct chat" placeholder="Choose account" />}
+            getOptionLabel={(option) => `${option.name} (${option.account_type})`}
+            renderInput={(params) => <TextField {...params} size="small" label="Open direct chat" placeholder="Choose account" />}
           />
           <Button variant="outlined" startIcon={<PersonAdd />} onClick={createDirect} disabled={!directTarget}>
             Open DM
@@ -472,15 +478,27 @@ export default function App() {
         </Stack>
       </SectionCard>
 
-      <SectionCard title="Your rooms" action={<Chip size="small" label={state.rooms.length} />}>
+      <SectionCard title="Your rooms" action={<Chip size="small" label={filteredRooms.length} />}>
         <Stack spacing={1.5}>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={roomFilter}
+            onChange={(_, value) => value && setRoomFilter(value)}
+            sx={{ alignSelf: 'flex-start' }}
+          >
+            <ToggleButton value="all">All</ToggleButton>
+            <ToggleButton value="groups">Groups</ToggleButton>
+            <ToggleButton value="direct">Solo</ToggleButton>
+          </ToggleButtonGroup>
           <TextField
+            size="small"
             placeholder="Search rooms"
             value={roomSearch}
             onChange={(e) => setRoomSearch(e.target.value)}
             InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
           />
-          <List sx={{ maxHeight: 'calc(100vh - 460px)', overflow: 'auto', p: 0 }}>
+          <List sx={{ flex: 1, minHeight: 0, maxHeight: 'calc(100vh - 470px)', overflowY: 'auto', overflowX: 'hidden', p: 0, border: 1, borderColor: 'divider', borderRadius: 3 }}>
             {filteredRooms.length ? (
               filteredRooms.map((room) => (
                 <ListItemButton
@@ -496,6 +514,7 @@ export default function App() {
                     primary={displayRoomName(room, state.me, state.accounts)}
                     secondary={`${roomLabel(room.room_type)} · created by ${room.created_by} · ${formatShortDate(room.created_at)}`}
                   />
+                  <Chip size="small" variant="outlined" label={room.room_type === 'direct' ? 'solo' : 'group'} />
                 </ListItemButton>
               ))
             ) : (
@@ -508,7 +527,7 @@ export default function App() {
   );
 
   const rightSidebar = (
-    <Stack spacing={2} sx={{ p: 2, width: RIGHTBAR_WIDTH }}>
+    <Stack spacing={2} sx={{ p: 2, width: RIGHTBAR_WIDTH, height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 4 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Box>
@@ -526,6 +545,7 @@ export default function App() {
       </Paper>
 
       <TextField
+        size="small"
         placeholder="Filter people"
         value={accountSearch}
         onChange={(e) => setAccountSearch(e.target.value)}
@@ -539,7 +559,7 @@ export default function App() {
               <AccountAvatar account={account} size={34} />
               <Box>
                 <Typography fontWeight={700}>{account.name}</Typography>
-                <Typography variant="body2" color="text.secondary">{account.role || 'Agent'}</Typography>
+                <Typography variant="body2" color="text.secondary">{account.account_type} · {account.role || 'Agent'}</Typography>
               </Box>
             </Stack>
           )) : <Typography variant="body2" color="text.secondary">No agent accounts yet.</Typography>}
@@ -689,12 +709,12 @@ export default function App() {
           </Toolbar>
         </AppBar>
 
-        <Box sx={{ display: 'flex', gap: 2, p: { xs: 1, md: 2 } }}>
+        <Box sx={{ display: 'flex', gap: 2, p: { xs: 1, md: 2 }, height: 'calc(100vh - 80px)', overflow: 'hidden' }}>
           {!leftCollapsed && (
-            <Box sx={{ width: DRAWER_WIDTH, display: { xs: 'none', lg: 'block' }, flexShrink: 0 }}>{leftSidebar}</Box>
+            <Box sx={{ width: DRAWER_WIDTH, display: { xs: 'none', lg: 'block' }, flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>{leftSidebar}</Box>
           )}
 
-          <Paper variant="outlined" sx={{ flex: 1, minWidth: 0, borderRadius: 5, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 110px)' }}>
+          <Paper variant="outlined" sx={{ flex: 1, minWidth: 0, borderRadius: 5, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
             <Box sx={{ p: { xs: 2, md: 3 }, borderBottom: 1, borderColor: 'divider' }}>
               <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
                 <Box>
@@ -709,12 +729,12 @@ export default function App() {
                     <Chip label={`Type ${currentRoom?.room_type || '—'}`} />
                   </Stack>
                 </Box>
-                <Stack direction="row" spacing={1} sx={{ alignSelf: { xs: 'flex-start', md: 'flex-start' } }}>
+                <Stack direction="row" spacing={1} sx={{ alignSelf: { xs: 'flex-start', md: 'flex-start' }, flexWrap: 'wrap' }}>
                   <Button variant="outlined" onClick={() => setLeftCollapsed((value) => !value)} sx={{ display: { xs: 'none', lg: 'inline-flex' } }}>
-                    {leftCollapsed ? 'Show left' : 'Hide left'}
+                    {leftCollapsed ? 'Expand left' : 'Collapse left'}
                   </Button>
                   <Button variant="outlined" onClick={() => setRightCollapsed((value) => !value)} sx={{ display: { xs: 'none', lg: 'inline-flex' } }}>
-                    {rightCollapsed ? 'Show right' : 'Hide right'}
+                    {rightCollapsed ? 'Expand right' : 'Collapse right'}
                   </Button>
                 </Stack>
               </Stack>
@@ -763,13 +783,14 @@ export default function App() {
             </Box>
 
             <Box sx={{ p: { xs: 2, md: 3 }, borderTop: 1, borderColor: 'divider' }}>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 4 }}>
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 4 }}>
                 <Stack spacing={2}>
                   <Typography variant="subtitle1" fontWeight={700}>Message composer</Typography>
                   <TextField
                     multiline
-                    minRows={3}
-                    maxRows={8}
+                    minRows={2}
+                    maxRows={5}
+                    size="small"
                     placeholder="Type your message…"
                     value={messageDraft}
                     onChange={(e) => setMessageDraft(e.target.value)}
@@ -778,7 +799,7 @@ export default function App() {
                     }}
                   />
                   <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                    <FormControl fullWidth>
+                    <FormControl fullWidth size="small">
                       <Select displayEmpty value={addMemberId} onChange={(e) => setAddMemberId(e.target.value)}>
                         <MenuItem value="">Add member</MenuItem>
                         {selectableAccounts.map((account) => (
@@ -795,7 +816,7 @@ export default function App() {
           </Paper>
 
           {!rightCollapsed && (
-            <Box sx={{ width: RIGHTBAR_WIDTH, display: { xs: 'none', lg: 'block' }, flexShrink: 0 }}>{rightSidebar}</Box>
+            <Box sx={{ width: RIGHTBAR_WIDTH, display: { xs: 'none', lg: 'block' }, flexShrink: 0, minHeight: 0, overflow: 'hidden' }}>{rightSidebar}</Box>
           )}
         </Box>
 
