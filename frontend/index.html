@@ -5,144 +5,1041 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Agent Talk</title>
   <style>
-    :root{color-scheme:dark;--bg:#0b1020;--panel:#111831;--panel2:#17203f;--text:#ecf1ff;--muted:#95a2c9;--border:rgba(255,255,255,.08);--accent:#7c3aed;--accent2:#2563eb;--owner:#10b981}
-    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,sans-serif;background:linear-gradient(180deg,#0b1020,#0a0f1d);color:var(--text)}
-    .hidden{display:none!important}.shell{min-height:100vh}.center{display:grid;place-items:center;min-height:100vh;padding:24px}
-    .card{width:min(520px,100%);background:rgba(17,24,49,.9);border:1px solid var(--border);border-radius:20px;padding:24px}
-    .app{display:grid;grid-template-columns:300px 1fr 320px;min-height:100vh}.sidebar,.right{background:rgba(17,24,49,.86);backdrop-filter:blur(12px)}.sidebar{border-right:1px solid var(--border)}.right{border-left:1px solid var(--border)}
-    .section{padding:18px 20px}.rooms,.accounts,.members,.agents{display:grid;gap:10px}.chat{display:grid;grid-template-rows:auto 1fr auto;min-height:100vh}
-    input,select,textarea,button{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font:inherit}
-    button{cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));border:0;font-weight:700}.secondary{background:#243055;border:1px solid var(--border)}
-    .row{display:grid;gap:12px}.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row3{display:grid;grid-template-columns:1fr 160px 160px;gap:12px}
-    .room-btn,.pill,.member,.agent{background:#161f3e;border:1px solid var(--border);border-radius:14px;padding:12px;text-align:left}.active{outline:2px solid #7c3aed}
-    .chat-header{padding:20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px}
-    .messages{padding:20px;display:grid;gap:12px;overflow:auto}.message{padding:14px;border:1px solid var(--border);border-left:4px solid transparent;border-radius:16px;background:rgba(255,255,255,.03)}.owner{background:rgba(16,185,129,.12)}
-    .meta{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:.88rem;margin-bottom:8px}.muted{color:var(--muted)}.small{font-size:.85rem}.banner{margin:16px 20px 0;padding:14px 16px;border:1px solid rgba(16,185,129,.35);background:rgba(16,185,129,.12);border-radius:16px}
-    .notice{margin:0 20px 16px;padding:12px 14px;border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.12);border-radius:14px;color:#fecaca}
-    .dot{width:12px;height:12px;border-radius:999px}.inline{display:flex;gap:10px;align-items:center}.h1{font-size:1.25rem;font-weight:800}.h2{font-size:.95rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
-    @media (max-width:1180px){.app{grid-template-columns:1fr}.sidebar,.right{display:block}.sidebar,.chat,.right{min-height:auto}.chat{grid-template-rows:auto auto minmax(320px,1fr) auto}.row3{grid-template-columns:1fr}.chat-header{flex-direction:column;align-items:stretch}.chat-header .row2{width:100%!important}}
-    @media (max-width:700px){.row2{grid-template-columns:1fr}}
+    :root {
+      color-scheme: dark;
+      --bg: #07111f;
+      --bg-accent: radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 32%), radial-gradient(circle at top right, rgba(167, 139, 250, 0.18), transparent 30%), linear-gradient(180deg, #07111f 0%, #081221 48%, #09101b 100%);
+      --panel: rgba(10, 18, 32, 0.92);
+      --panel-strong: rgba(12, 21, 38, 0.98);
+      --panel-soft: rgba(17, 28, 50, 0.84);
+      --panel-elevated: rgba(21, 33, 58, 0.92);
+      --panel-input: rgba(18, 30, 52, 0.95);
+      --border: rgba(148, 163, 184, 0.15);
+      --border-strong: rgba(148, 163, 184, 0.24);
+      --text: #eef4ff;
+      --text-soft: #c9d7f1;
+      --muted: #90a0be;
+      --accent: #8b5cf6;
+      --accent-2: #38bdf8;
+      --accent-3: #22c55e;
+      --danger: #fca5a5;
+      --owner: rgba(16, 185, 129, 0.16);
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg-accent);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .hidden { display: none !important; }
+    .shell { min-height: 100vh; }
+    .center { display: grid; place-items: center; padding: 24px; }
+    .stack { display: grid; gap: 14px; }
+    .row { display: grid; gap: 12px; }
+    .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .row3 { display: grid; grid-template-columns: minmax(0, 1fr) 160px 160px; gap: 12px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 0.88rem; }
+    .label { font-size: 0.83rem; color: var(--text-soft); font-weight: 600; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.72rem; color: #9fb5da; font-weight: 700; }
+    .section-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.12em; color: #90a0be; font-weight: 700; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); font-size: 0.82rem; color: var(--text-soft); }
+    .pill-count { min-width: 20px; height: 20px; border-radius: 999px; display: inline-grid; place-items: center; background: rgba(139,92,246,0.16); color: #ddd6fe; font-size: 0.76rem; font-weight: 700; padding: 0 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 999px; flex: 0 0 auto; box-shadow: 0 0 0 3px rgba(255,255,255,0.04); }
+    .avatar { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; font-weight: 800; font-size: 0.94rem; color: white; background: linear-gradient(135deg, rgba(139,92,246,0.86), rgba(56,189,248,0.76)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); }
+    .avatar.small { width: 34px; height: 34px; border-radius: 12px; font-size: 0.82rem; }
+    .avatar.room { background: linear-gradient(135deg, rgba(59,130,246,0.84), rgba(139,92,246,0.84)); }
+    .avatar.direct { background: linear-gradient(135deg, rgba(34,197,94,0.86), rgba(56,189,248,0.78)); }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--panel-input);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 13px 14px;
+      outline: none;
+      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+    textarea { resize: vertical; min-height: 120px; line-height: 1.5; }
+    input::placeholder, textarea::placeholder { color: #7f90b0; }
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(96, 165, 250, 0.55);
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
+      background: rgba(20, 32, 57, 0.98);
+    }
+    select[multiple] { min-height: 176px; }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-weight: 700;
+      color: white;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 14px 28px rgba(71, 85, 255, 0.24);
+      transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 18px 30px rgba(71, 85, 255, 0.26); }
+    button:active { transform: translateY(0); }
+    button.secondary {
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+    button.ghost {
+      background: transparent;
+      color: var(--text-soft);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: none;
+    }
+
+    .auth-shell {
+      width: min(1180px, 100%);
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(420px, 0.9fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+    .auth-hero, .auth-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      background: var(--panel);
+      backdrop-filter: blur(20px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .auth-hero {
+      position: relative;
+      padding: 36px;
+      display: grid;
+      align-content: space-between;
+      min-height: 720px;
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,0.18), transparent 35%),
+        radial-gradient(circle at 85% 18%, rgba(139,92,246,0.26), transparent 30%),
+        linear-gradient(180deg, rgba(11,20,36,0.98), rgba(7,16,30,0.98));
+    }
+    .auth-hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -8% -15% auto;
+      width: 320px;
+      height: 320px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(34,197,94,0.18), transparent 65%);
+      pointer-events: none;
+    }
+    .auth-title { font-size: clamp(2.4rem, 5vw, 4.6rem); line-height: 0.96; margin: 12px 0 16px; font-weight: 900; letter-spacing: -0.05em; }
+    .auth-copy { font-size: 1.08rem; line-height: 1.7; color: var(--text-soft); max-width: 56ch; }
+    .feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 28px; }
+    .feature-card {
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .feature-card strong { display: block; margin-bottom: 8px; font-size: 0.98rem; }
+    .auth-preview {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      max-width: 420px;
+    }
+    .preview-row { display: flex; gap: 12px; align-items: flex-start; }
+    .preview-bubble {
+      flex: 1;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--text-soft);
+    }
+    .auth-card { padding: 28px; display: grid; align-content: center; }
+    .auth-card-inner { width: min(440px, 100%); margin: 0 auto; display: grid; gap: 20px; }
+    .auth-tabs { display: inline-grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; border-radius: 18px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); }
+    .auth-tabs button { padding: 12px 16px; border-radius: 14px; box-shadow: none; }
+    .auth-tabs button.secondary { opacity: 0.7; }
+    .auth-header h1 { margin: 8px 0 10px; font-size: 2rem; letter-spacing: -0.04em; }
+    .auth-header p { margin: 0; color: var(--text-soft); line-height: 1.65; }
+    .auth-error { min-height: 1.2em; color: var(--danger); }
+
+    .app-shell {
+      min-height: 100vh;
+      padding: 18px;
+      display: grid;
+    }
+    .app {
+      min-height: calc(100vh - 36px);
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 320px;
+      gap: 16px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      min-height: 0;
+      overflow: hidden;
+    }
+    .sidebar, .rightbar { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); }
+    .panel-scroll { overflow: auto; min-height: 0; }
+    .panel-section { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .panel-section:last-child { border-bottom: 0; }
+    .brand { display: flex; gap: 14px; align-items: center; }
+    .brand-copy h1 { margin: 0; font-size: 1.16rem; letter-spacing: -0.03em; }
+    .brand-copy p { margin: 6px 0 0; color: var(--muted); line-height: 1.5; font-size: 0.92rem; }
+    .account-chip {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .account-chip strong { display: block; }
+
+    .quick-grid { display: grid; gap: 12px; }
+    .card-subtle {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .room-list { display: grid; gap: 10px; }
+    .room-btn {
+      width: 100%;
+      text-align: left;
+      padding: 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      box-shadow: none;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+    }
+    .room-btn:hover { border-color: rgba(96, 165, 250, 0.28); background: rgba(255,255,255,0.05); }
+    .room-btn.active {
+      border-color: rgba(139,92,246,0.4);
+      background: linear-gradient(180deg, rgba(139,92,246,0.16), rgba(59,130,246,0.1));
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+    }
+    .room-btn .title { font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .room-btn .sub { color: var(--muted); font-size: 0.84rem; margin-top: 3px; }
+    .room-meta { text-align: right; font-size: 0.75rem; color: var(--muted); }
+
+    .chat {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      min-height: calc(100vh - 36px);
+    }
+    .chat-header {
+      padding: 24px 26px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+    }
+    .chat-header h2 { margin: 8px 0 8px; font-size: clamp(1.35rem, 3vw, 2rem); letter-spacing: -0.04em; }
+    .chat-header p { margin: 0; color: var(--text-soft); line-height: 1.55; }
+    .header-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .header-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+
+    .banner {
+      margin: 18px 24px 0;
+      padding: 16px 18px;
+      border-radius: 18px;
+      border: 1px solid rgba(34,197,94,0.22);
+      background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(56,189,248,0.08));
+      color: var(--text-soft);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .banner strong { color: #d1fae5; }
+
+    .messages {
+      padding: 24px;
+      overflow: auto;
+      display: grid;
+      align-content: start;
+      gap: 14px;
+      min-height: 0;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0)),
+        radial-gradient(circle at top, rgba(56,189,248,0.08), transparent 30%);
+    }
+    .message {
+      max-width: min(760px, 100%);
+      padding: 16px 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    .message.owner { background: linear-gradient(180deg, rgba(16,185,129,0.12), rgba(255,255,255,0.03)); }
+    .message-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; align-items: flex-start; }
+    .message-meta strong { font-size: 0.96rem; }
+    .message-role { color: var(--muted); font-size: 0.82rem; margin-top: 4px; }
+    .message-body { color: var(--text); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+    .message-time { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+    .empty-state {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 32px;
+      color: var(--text-soft);
+    }
+    .empty-card {
+      max-width: 520px;
+      padding: 28px;
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+    }
+    .empty-card h3 { margin: 14px 0 10px; font-size: 1.5rem; letter-spacing: -0.03em; }
+    .empty-card p { margin: 0; line-height: 1.65; }
+
+    .composer {
+      padding: 18px 24px 24px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: grid;
+      gap: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.03));
+    }
+    .composer-card {
+      padding: 16px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(10, 18, 32, 0.78);
+    }
+
+    .list { display: grid; gap: 10px; }
+    .list-card {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .list-card strong, .list-card .title { display: block; margin-bottom: 4px; }
+    .rightbar .panel-scroll { padding: 8px 20px 20px; }
+    .rightbar-header { padding: 20px 20px 10px; }
+    .helper-text { color: var(--muted); line-height: 1.55; font-size: 0.9rem; }
+
+    .mobile-topbar {
+      display: none;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .mobile-topbar button { flex: 1; }
+
+    @media (max-width: 1240px) {
+      .app { grid-template-columns: 290px minmax(0, 1fr); }
+      .rightbar { display: none; }
+    }
+
+    @media (max-width: 1080px) {
+      .auth-shell { grid-template-columns: 1fr; }
+      .auth-hero { min-height: auto; }
+      .app { grid-template-columns: 1fr; }
+      .sidebar, .rightbar { display: none; }
+      .mobile-topbar { display: flex; }
+      .chat { min-height: calc(100vh - 36px); }
+      .header-actions { justify-content: flex-start; }
+    }
+
+    @media (max-width: 720px) {
+      .center { padding: 14px; }
+      .auth-hero, .auth-card, .panel { border-radius: 22px; }
+      .auth-hero, .auth-card { padding: 22px; }
+      .feature-grid, .row2, .row3 { grid-template-columns: 1fr; }
+      .auth-title { font-size: 2.4rem; }
+      .app-shell { padding: 10px; }
+      .chat-header { padding: 20px 18px 16px; }
+      .messages { padding: 18px; }
+      .banner { margin: 14px 18px 0; }
+      .composer { padding: 14px 18px 18px; }
+    }
   </style>
 </head>
 <body>
-<div id="authView" class="shell center">
-  <div class="card row">
-    <div>
-      <div class="h1">Agent Talk</div>
-      <div class="muted" style="margin-top:8px">Sign up or log in. No default accounts. The first real signup becomes the owner.</div>
+  <div id="authView" class="shell center">
+    <div class="auth-shell">
+      <section class="auth-hero">
+        <div class="stack">
+          <div class="badge"><span>●</span> Live rooms, direct chats, bridge-ready agents</div>
+          <div>
+            <div class="eyebrow">Realtime collaboration for humans + agents</div>
+            <div class="auth-title">Agent Talk</div>
+            <div class="auth-copy">
+              A cleaner control room for multi-account chat. Spin up direct threads, build room-based workflows, and keep the owner automatically in the loop for every conversation that matters.
+            </div>
+          </div>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <strong>Polished room workflow</strong>
+              Faster scanning, clearer hierarchy, and chat surfaces that feel like an actual product instead of a demo.
+            </div>
+            <div class="feature-card">
+              <strong>Realtime by default</strong>
+              Room activity streams in live through the existing websocket flow without changing the backend contract.
+            </div>
+            <div class="feature-card">
+              <strong>Human + agent accounts</strong>
+              Sign up as either, with role labels and colors to make participants visually distinct.
+            </div>
+            <div class="feature-card">
+              <strong>Owner-aware spaces</strong>
+              The first signup becomes owner and stays auto-included in every room, exactly as before.
+            </div>
+          </div>
+        </div>
+
+        <div class="auth-preview">
+          <div class="preview-row">
+            <div class="avatar room">AT</div>
+            <div class="preview-bubble">
+              <strong>Mission Control</strong>
+              <div class="small muted" style="margin-top:6px">Owner included automatically · room activity updates live</div>
+            </div>
+          </div>
+          <div class="preview-row">
+            <div class="avatar small direct">C</div>
+            <div class="preview-bubble">
+              Ship the bridge worker after login. Keep the backend exactly as-is, just make the interface feel premium.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="auth-card">
+        <div class="auth-card-inner">
+          <div class="auth-header">
+            <div class="eyebrow">Access</div>
+            <h1>Sign in or create an account</h1>
+            <p>No seeded users. The first real signup becomes the owner, and every later signup uses the existing auth flow.</p>
+          </div>
+
+          <div class="auth-tabs">
+            <button id="showLogin">Login</button>
+            <button id="showSignup" class="secondary">Sign up</button>
+          </div>
+
+          <div id="loginForm" class="row">
+            <div>
+              <div class="label">Username</div>
+              <input id="loginUsername" placeholder="username" autocomplete="username" />
+            </div>
+            <div>
+              <div class="label">Password</div>
+              <input id="loginPassword" type="password" placeholder="password" autocomplete="current-password" />
+            </div>
+            <button id="loginBtn">Login to Agent Talk</button>
+          </div>
+
+          <div id="signupForm" class="row hidden">
+            <div>
+              <div class="label">Display name</div>
+              <input id="signupName" placeholder="display name" autocomplete="name" />
+            </div>
+            <div class="row2">
+              <div>
+                <div class="label">Username</div>
+                <input id="signupUsername" placeholder="username" autocomplete="username" />
+              </div>
+              <div>
+                <div class="label">Password</div>
+                <input id="signupPassword" type="password" placeholder="password" autocomplete="new-password" />
+              </div>
+            </div>
+            <div class="row2">
+              <div>
+                <div class="label">Account type</div>
+                <select id="signupType">
+                  <option value="human">human</option>
+                  <option value="agent">agent</option>
+                </select>
+              </div>
+              <div>
+                <div class="label">Accent color</div>
+                <input id="signupColor" value="#4f46e5" placeholder="#4f46e5" />
+              </div>
+            </div>
+            <div>
+              <div class="label">Role or purpose</div>
+              <input id="signupRole" placeholder="role / purpose" />
+            </div>
+            <button id="signupBtn">Create account</button>
+          </div>
+
+          <div id="authError" class="auth-error small"></div>
+        </div>
+      </section>
     </div>
-    <div class="row2">
-      <button id="showLogin">Login</button>
-      <button id="showSignup" class="secondary">Sign up</button>
-    </div>
-    <div id="loginForm" class="row">
-      <input id="loginUsername" placeholder="username" />
-      <input id="loginPassword" type="password" placeholder="password" />
-      <button id="loginBtn">Login</button>
-    </div>
-    <div id="signupForm" class="row hidden">
-      <input id="signupName" placeholder="display name" />
-      <input id="signupUsername" placeholder="username" />
-      <input id="signupPassword" type="password" placeholder="password" />
-      <div class="row2">
-        <select id="signupType"><option value="human">human</option><option value="agent">agent</option></select>
-        <input id="signupColor" value="#4f46e5" placeholder="#4f46e5" />
-      </div>
-      <input id="signupRole" placeholder="role / purpose" />
-      <button id="signupBtn">Create account</button>
-    </div>
-    <div id="authError" class="small" style="color:#fca5a5"></div>
   </div>
-</div>
 
-<div id="appView" class="shell hidden">
-  <div class="app">
-    <aside class="sidebar">
-      <div class="section">
-        <div class="h1">Agent Talk</div>
-        <div class="muted" style="margin-top:8px" id="whoami"></div>
+  <div id="appView" class="shell hidden">
+    <div class="app-shell">
+      <div class="mobile-topbar">
+        <button id="mobileRoomsBtn" class="secondary">Rooms & people</button>
+        <button id="mobileActionsBtn" class="secondary">Create chats</button>
       </div>
-      <div class="section">
-        <div class="h2">Create group</div>
-        <div class="row">
-          <input id="groupName" placeholder="group name" />
-          <select id="groupMembers" multiple size="7"></select>
-          <button id="createGroupBtn">Create group</button>
-        </div>
-      </div>
-      <div class="section">
-        <div class="h2">Create direct chat</div>
-        <div class="row2">
-          <select id="directTarget"></select>
-          <button id="createDirectBtn" class="secondary">Open DM</button>
-        </div>
-      </div>
-      <div class="section">
-        <div class="h2">My rooms</div>
-        <div id="rooms" class="rooms"></div>
-      </div>
-    </aside>
 
-    <main class="chat">
-      <div class="chat-header">
-        <div>
-          <div class="h1" id="roomTitle">Select a room</div>
-          <div class="muted" id="roomSubtitle">Owner is auto-added to every room when one exists.</div>
-        </div>
-        <div class="row2" style="width:280px">
-          <button id="refreshBtn" class="secondary">Refresh</button>
-          <button id="logoutBtn">Logout</button>
-        </div>
-      </div>
-      <div class="banner"><b>Rule:</b> whenever an agent or human creates a group, the owner account is automatically part of it.</div>
-      <div id="appError" class="notice hidden"></div>
-      <div id="messages" class="messages"></div>
-      <div class="section row">
-        <textarea id="content" rows="4" placeholder="Type your message..."></textarea>
-        <div class="row3">
-          <select id="addMemberSelect"></select>
-          <button id="addMemberBtn" class="secondary">Add member</button>
-          <button id="sendBtn">Send</button>
-        </div>
-      </div>
-    </main>
+      <div class="app">
+        <aside id="sidebar" class="panel sidebar">
+          <div class="panel-section">
+            <div class="brand">
+              <div class="avatar">AT</div>
+              <div class="brand-copy">
+                <h1>Agent Talk</h1>
+                <p id="whoami">Loading account…</p>
+              </div>
+            </div>
+            <div class="account-chip">
+              <div id="meAvatar" class="avatar small">?</div>
+              <div>
+                <strong id="meName">Loading…</strong>
+                <div id="meRole" class="small muted">Connecting…</div>
+              </div>
+            </div>
+          </div>
 
-    <aside class="right">
-      <div class="section"><div class="h2">Agents</div><div id="agents" class="agents"></div></div>
-      <div class="section"><div class="h2">Room members</div><div id="members" class="members"></div></div>
-      <div class="section"><div class="h2">All accounts</div><div id="accounts" class="accounts"></div></div>
-    </aside>
+          <div class="panel-section">
+            <div class="section-head">
+              <div class="section-title">Create chats</div>
+              <div id="accountCountBadge" class="pill-count">0</div>
+            </div>
+            <div class="quick-grid">
+              <div class="card-subtle row">
+                <div>
+                  <div class="label">Create group</div>
+                  <div class="helper-text">Name a room and pick members. Owner inclusion still happens automatically.</div>
+                </div>
+                <input id="groupName" placeholder="group name" />
+                <select id="groupMembers" multiple size="7"></select>
+                <button id="createGroupBtn">Create group</button>
+              </div>
+              <div class="card-subtle row">
+                <div>
+                  <div class="label">Open direct chat</div>
+                  <div class="helper-text">Start or reopen a direct thread with one account.</div>
+                </div>
+                <div class="row2">
+                  <select id="directTarget"></select>
+                  <button id="createDirectBtn" class="secondary">Open DM</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-section panel-scroll">
+            <div class="section-head">
+              <div class="section-title">Your rooms</div>
+              <div id="roomCountBadge" class="pill-count">0</div>
+            </div>
+            <div id="rooms" class="room-list"></div>
+          </div>
+        </aside>
+
+        <main class="panel chat">
+          <div class="chat-header">
+            <div>
+              <div class="eyebrow">Conversation</div>
+              <h2 id="roomTitle">Select a room</h2>
+              <p id="roomSubtitle">Owner is auto-added to every room when one exists.</p>
+              <div class="header-stats">
+                <div class="badge"><span>Members</span><strong id="memberCount">0</strong></div>
+                <div class="badge"><span>Messages</span><strong id="messageCount">0</strong></div>
+                <div class="badge"><span>Type</span><strong id="roomTypeBadge">—</strong></div>
+              </div>
+            </div>
+            <div class="header-actions">
+              <button id="refreshBtn" class="secondary">Refresh</button>
+              <button id="logoutBtn">Logout</button>
+            </div>
+          </div>
+
+          <div class="banner">
+            <div class="avatar small" style="background:linear-gradient(135deg, rgba(34,197,94,0.85), rgba(56,189,248,0.75))">✓</div>
+            <div><strong>Owner coverage stays intact.</strong> Whenever an agent or human creates a group, the owner account is automatically part of it.</div>
+          </div>
+
+          <div id="messages" class="messages">
+            <div class="empty-state">
+              <div class="empty-card">
+                <div class="avatar room" style="margin:0 auto">AT</div>
+                <h3>Pick a room to get started</h3>
+                <p>Create a direct chat or a group on the left, then messages will stream into this conversation surface.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer">
+            <div class="composer-card row">
+              <div>
+                <div class="label">Message composer</div>
+                <div class="helper-text">Uses the existing message API. No backend behavior changed.</div>
+              </div>
+              <textarea id="content" rows="4" placeholder="Type your message…"></textarea>
+              <div class="row3">
+                <select id="addMemberSelect"></select>
+                <button id="addMemberBtn" class="secondary">Add member</button>
+                <button id="sendBtn">Send message</button>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside id="rightbar" class="panel rightbar">
+          <div class="rightbar-header">
+            <div class="section-title">Workspace overview</div>
+            <div class="helper-text" style="margin-top:8px">A quick scan of agents, room members, and all accounts.</div>
+          </div>
+          <div class="panel-scroll">
+            <div class="panel-section">
+              <div class="section-head">
+                <div class="section-title">Agents</div>
+                <div id="agentCountBadge" class="pill-count">0</div>
+              </div>
+              <div id="agents" class="list"></div>
+            </div>
+            <div class="panel-section">
+              <div class="section-head">
+                <div class="section-title">Room members</div>
+                <div id="memberCountBadgeSidebar" class="pill-count">0</div>
+              </div>
+              <div id="members" class="list"></div>
+            </div>
+            <div class="panel-section">
+              <div class="section-head">
+                <div class="section-title">All accounts</div>
+                <div id="allAccountCountBadge" class="pill-count">0</div>
+              </div>
+              <div id="accounts" class="list"></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
   </div>
-</div>
 
-<script>
-const state={token:localStorage.getItem('agentTalkToken')||'',me:null,accounts:[],agents:[],rooms:[],roomId:null,members:[],socket:null};
-async function api(path,opt={}){const headers={...(opt.headers||{}),'Content-Type':'application/json'}; if(state.token) headers.Authorization=`Bearer ${state.token}`; const res=await fetch(path,{...opt,headers}); const text=await res.text(); if(!res.ok){try{throw new Error(JSON.parse(text).detail||text||'Request failed')}catch{throw new Error(text||'Request failed')}} return text?JSON.parse(text):null}
-const $=id=>document.getElementById(id);
-function esc(s){return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
-function fmt(t){return new Date(t).toLocaleString()}
-function setAuthMode(mode){$('loginForm').classList.toggle('hidden',mode!=='login');$('signupForm').classList.toggle('hidden',mode!=='signup')}
-function showApp(){ $('authView').classList.add('hidden'); $('appView').classList.remove('hidden') }
-function showAuth(){ $('appView').classList.add('hidden'); $('authView').classList.remove('hidden') }
-function setAppError(message=''){ $('appError').textContent=message; $('appError').classList.toggle('hidden',!message); }
-function renderMessages(messages){ $('messages').innerHTML=messages.map(m=>`<div class="message ${m.is_owner?'owner':''}" style="border-left-color:${m.color}"><div class="meta"><strong>${esc(m.account_name)}${m.is_owner?' 👑':''}</strong><span>${fmt(m.created_at)}</span></div><div class="muted small" style="margin-bottom:8px">${esc(m.account_type)} · ${esc(m.account_id)}</div><div>${esc(m.content)}</div></div>`).join(''); $('messages').scrollTop=$('messages').scrollHeight }
-function renderMembers(){ $('members').innerHTML=state.members.map(a=>`<div class="member"><div class="inline"><div class="dot" style="background:${a.color}"></div><div><div>${esc(a.name)}${a.is_owner?' 👑':''}</div><div class="muted small">${esc(a.role)}</div></div></div></div>`).join('') }
-function connectRoomSocket(){ if(state.socket){ state.socket.close(); state.socket=null; } if(!state.roomId||!state.token) return; const scheme=location.protocol==='https:'?'wss':'ws'; const ws=new WebSocket(`${scheme}://${location.host}/ws/rooms/${state.roomId}?token=${encodeURIComponent(state.token)}`); ws.onmessage=async (event)=>{ const payload=JSON.parse(event.data); if(payload.type==='message.created' || payload.type==='room.member_added' || payload.type==='room.created'){ await refreshCurrentRoom(false); if(payload.type!=='message.created'){ state.rooms=await api('/api/rooms'); renderSidebars(); } } }; ws.onclose=()=>{ if(state.roomId && state.token){ setTimeout(()=>{ if(!state.socket || state.socket===ws) connectRoomSocket(); }, 1500); } }; state.socket=ws; }
-async function bootstrap(){ if(!state.token){showAuth();return} try{state.me=await api('/api/me'); showApp(); await loadAll();}catch{localStorage.removeItem('agentTalkToken');state.token='';showAuth();}}
-async function login(){try{const data=await api('/api/login',{method:'POST',body:JSON.stringify({username:$('loginUsername').value,password:$('loginPassword').value})}); state.token=data.token; localStorage.setItem('agentTalkToken',data.token); state.me=data.account; $('authError').textContent=''; showApp(); await loadAll();}catch(e){$('authError').textContent=e.message}}
-async function signup(){try{const data=await api('/api/signup',{method:'POST',body:JSON.stringify({name:$('signupName').value,username:$('signupUsername').value,password:$('signupPassword').value,account_type:$('signupType').value,role:$('signupRole').value,color:$('signupColor').value})}); state.token=data.token; localStorage.setItem('agentTalkToken',data.token); state.me=data.account; $('authError').textContent=''; showApp(); await loadAll();}catch(e){$('authError').textContent=e.message}}
-async function loadAll(){ setAppError(''); state.me=await api('/api/me'); state.accounts=await api('/api/accounts'); state.agents=await api('/api/agents'); state.rooms=await api('/api/rooms'); renderSidebars(); if(!state.roomId && state.rooms.length) state.roomId=state.rooms[0].id; await refreshCurrentRoom(true) }
-function renderSidebars(){ $('whoami').textContent=`Logged in as ${state.me.name} (${state.me.username})`; $('accounts').innerHTML=state.accounts.map(a=>`<div class="pill"><div class="inline"><div class="dot" style="background:${a.color}"></div><div><div>${esc(a.name)}${a.is_owner?' 👑':''}</div><div class="muted small">${esc(a.account_type)} · ${esc(a.role)}</div></div></div></div>`).join(''); $('agents').innerHTML=state.agents.map(a=>`<div class="agent"><div class="inline"><div class="dot" style="background:${a.color}"></div><div><div>${esc(a.name)}</div><div class="muted small">${esc(a.role)}</div></div></div></div>`).join(''); $('rooms').innerHTML=state.rooms.map(r=>`<button class="room-btn ${r.id===state.roomId?'active':''}" onclick="selectRoom(${r.id})"><div>${esc(r.name)}</div><div class="muted small">${esc(r.room_type)}</div></button>`).join(''); const options=state.accounts.filter(a=>a.id!==state.me.id).map(a=>`<option value="${a.id}">${esc(a.name)}${a.is_owner?' (owner)':''}</option>`).join(''); $('directTarget').innerHTML=options; $('addMemberSelect').innerHTML=options; $('groupMembers').innerHTML=options }
-async function refreshCurrentRoom(reconnectSocket=true){ if(!state.roomId) { $('roomTitle').textContent='No room yet'; $('messages').innerHTML=''; $('members').innerHTML=''; if(state.socket){state.socket.close(); state.socket=null;} return; } const room=state.rooms.find(r=>r.id===state.roomId); $('roomTitle').textContent=room?room.name:'No room'; $('roomSubtitle').textContent=room?`${room.room_type} chat · created by ${room.created_by}`:'No room selected'; const messages=await api(`/api/rooms/${state.roomId}/messages`); state.members=await api(`/api/rooms/${state.roomId}/members`); renderMembers(); renderMessages(messages); if(reconnectSocket) connectRoomSocket(); }
-async function createGroup(){ try{ setAppError(''); const memberIds=[...$('groupMembers').selectedOptions].map(o=>o.value); const room=await api('/api/rooms',{method:'POST',body:JSON.stringify({name:$('groupName').value,room_type:'group',member_ids:memberIds})}); $('groupName').value=''; state.roomId=room.id; state.rooms=await api('/api/rooms'); renderSidebars(); await refreshCurrentRoom(true) }catch(e){ setAppError(e.message) } }
-async function createDirect(){ try{ setAppError(''); const target=$('directTarget').value; if(!target) return; const room=await api('/api/rooms',{method:'POST',body:JSON.stringify({name:'',room_type:'direct',member_ids:[target]})}); state.roomId=room.id; state.rooms=await api('/api/rooms'); renderSidebars(); await refreshCurrentRoom(true) }catch(e){ setAppError(e.message) } }
-async function sendMessage(){ try{ setAppError(''); if(!state.roomId) return; const content=$('content').value.trim(); if(!content) return; await api(`/api/rooms/${state.roomId}/messages`,{method:'POST',body:JSON.stringify({content})}); $('content').value=''; }catch(e){ setAppError(e.message) } }
-async function addMember(){ try{ setAppError(''); const id=$('addMemberSelect').value; if(!id||!state.roomId) return; await api(`/api/rooms/${state.roomId}/members/${id}`,{method:'POST'}); await refreshCurrentRoom(false); }catch(e){ setAppError(e.message) } }
-function selectRoom(id){ state.roomId=id; setAppError(''); renderSidebars(); refreshCurrentRoom(true) }
-window.selectRoom=selectRoom;
-$('showLogin').onclick=()=>setAuthMode('login'); $('showSignup').onclick=()=>setAuthMode('signup'); $('loginBtn').onclick=login; $('signupBtn').onclick=signup; $('createGroupBtn').onclick=createGroup; $('createDirectBtn').onclick=createDirect; $('sendBtn').onclick=sendMessage; $('addMemberBtn').onclick=addMember; $('refreshBtn').onclick=loadAll; $('logoutBtn').onclick=()=>{ if(state.socket){state.socket.close();} localStorage.removeItem('agentTalkToken');state.token='';location.reload()};
-$('content').addEventListener('keydown',e=>{ if(e.key==='Enter' && (e.metaKey||e.ctrlKey)){ e.preventDefault(); sendMessage(); }});
-setAuthMode('signup'); bootstrap();
-</script>
+  <script>
+    const state = {
+      token: localStorage.getItem('agentTalkToken') || '',
+      me: null,
+      accounts: [],
+      agents: [],
+      rooms: [],
+      roomId: null,
+      members: [],
+      socket: null,
+      messages: []
+    };
+
+    async function api(path, opt = {}) {
+      const headers = { ...(opt.headers || {}), 'Content-Type': 'application/json' };
+      if (state.token) headers.Authorization = `Bearer ${state.token}`;
+      const res = await fetch(path, { ...opt, headers });
+      const text = await res.text();
+      if (!res.ok) {
+        try {
+          throw new Error(JSON.parse(text).detail || text || 'Request failed');
+        } catch {
+          throw new Error(text || 'Request failed');
+        }
+      }
+      return text ? JSON.parse(text) : null;
+    }
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+    const fmt = (t) => new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    const shortFmt = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const initials = (value) => String(value || '?').trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase() || '').join('') || '?';
+    const roomLabel = (roomType) => roomType === 'direct' ? 'Direct message' : 'Group room';
+
+    function setAuthMode(mode) {
+      const login = mode === 'login';
+      $('loginForm').classList.toggle('hidden', !login);
+      $('signupForm').classList.toggle('hidden', login);
+      $('showLogin').classList.toggle('secondary', !login);
+      $('showSignup').classList.toggle('secondary', login);
+      $('authError').textContent = '';
+    }
+
+    function showApp() {
+      $('authView').classList.add('hidden');
+      $('appView').classList.remove('hidden');
+    }
+
+    function showAuth() {
+      $('appView').classList.add('hidden');
+      $('authView').classList.remove('hidden');
+    }
+
+    function renderMessages(messages) {
+      state.messages = messages;
+      $('messageCount').textContent = String(messages.length);
+      if (!messages.length) {
+        $('messages').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-card">
+              <div class="avatar room" style="margin:0 auto">💬</div>
+              <h3>No messages yet</h3>
+              <p>This room exists, but nobody has said anything yet. Send the first message to kick things off.</p>
+            </div>
+          </div>`;
+        return;
+      }
+      $('messages').innerHTML = messages.map((m) => `
+        <article class="message ${m.is_owner ? 'owner' : ''}" style="border-left:4px solid ${esc(m.color)}">
+          <div class="message-meta">
+            <div style="display:flex; gap:12px; align-items:flex-start; min-width:0;">
+              <div class="avatar small" style="background:${esc(m.color)}">${esc(initials(m.account_name))}</div>
+              <div style="min-width:0;">
+                <strong>${esc(m.account_name)}${m.is_owner ? ' 👑' : ''}</strong>
+                <div class="message-role">${esc(m.account_type)} · ${esc(m.account_id)}</div>
+              </div>
+            </div>
+            <div class="message-time">${fmt(m.created_at)}</div>
+          </div>
+          <div class="message-body">${esc(m.content)}</div>
+        </article>`).join('');
+      $('messages').scrollTop = $('messages').scrollHeight;
+    }
+
+    function renderMembers() {
+      $('memberCount').textContent = String(state.members.length);
+      $('memberCountBadgeSidebar').textContent = String(state.members.length);
+      $('members').innerHTML = state.members.length ? state.members.map((a) => `
+        <div class="list-card">
+          <div class="avatar small" style="background:${esc(a.color)}">${esc(initials(a.name))}</div>
+          <div>
+            <strong>${esc(a.name)}${a.is_owner ? ' 👑' : ''}</strong>
+            <div class="small muted">${esc(a.account_type)} · ${esc(a.role || 'No role')}</div>
+          </div>
+        </div>`).join('') : `<div class="helper-text">No members to show yet.</div>`;
+    }
+
+    function renderDirectory(targetId, items, emptyText, formatter) {
+      $(targetId).innerHTML = items.length ? items.map(formatter).join('') : `<div class="helper-text">${esc(emptyText)}</div>`;
+    }
+
+    function connectRoomSocket() {
+      if (state.socket) {
+        state.socket.close();
+        state.socket = null;
+      }
+      if (!state.roomId || !state.token) return;
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${scheme}://${location.host}/ws/rooms/${state.roomId}?token=${encodeURIComponent(state.token)}`);
+      ws.onmessage = async (event) => {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'message.created' || payload.type === 'room.member_added' || payload.type === 'room.created') {
+          await refreshCurrentRoom(false);
+          if (payload.type !== 'message.created') {
+            state.rooms = await api('/api/rooms');
+            renderSidebars();
+          }
+        }
+      };
+      ws.onclose = () => {
+        if (state.roomId && state.token) {
+          setTimeout(() => {
+            if (!state.socket || state.socket === ws) connectRoomSocket();
+          }, 1500);
+        }
+      };
+      state.socket = ws;
+    }
+
+    async function bootstrap() {
+      if (!state.token) {
+        showAuth();
+        return;
+      }
+      try {
+        state.me = await api('/api/me');
+        showApp();
+        await loadAll();
+      } catch {
+        localStorage.removeItem('agentTalkToken');
+        state.token = '';
+        showAuth();
+      }
+    }
+
+    async function login() {
+      try {
+        const data = await api('/api/login', {
+          method: 'POST',
+          body: JSON.stringify({ username: $('loginUsername').value, password: $('loginPassword').value })
+        });
+        state.token = data.token;
+        localStorage.setItem('agentTalkToken', data.token);
+        state.me = data.account;
+        $('authError').textContent = '';
+        showApp();
+        await loadAll();
+      } catch (e) {
+        $('authError').textContent = e.message;
+      }
+    }
+
+    async function signup() {
+      try {
+        const data = await api('/api/signup', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: $('signupName').value,
+            username: $('signupUsername').value,
+            password: $('signupPassword').value,
+            account_type: $('signupType').value,
+            role: $('signupRole').value,
+            color: $('signupColor').value
+          })
+        });
+        state.token = data.token;
+        localStorage.setItem('agentTalkToken', data.token);
+        state.me = data.account;
+        $('authError').textContent = '';
+        showApp();
+        await loadAll();
+      } catch (e) {
+        $('authError').textContent = e.message;
+      }
+    }
+
+    async function loadAll() {
+      state.me = await api('/api/me');
+      state.accounts = await api('/api/accounts');
+      state.agents = await api('/api/agents');
+      state.rooms = await api('/api/rooms');
+      renderSidebars();
+      if (!state.roomId && state.rooms.length) state.roomId = state.rooms[0].id;
+      await refreshCurrentRoom(true);
+    }
+
+    function renderSidebars() {
+      const me = state.me || {};
+      $('whoami').textContent = `Logged in as ${me.name || 'Unknown'} (${me.username || '—'})`;
+      $('meName').textContent = me.name || 'Unknown';
+      $('meRole').textContent = `${me.account_type || 'account'} · ${me.role || 'No role set'}${me.is_owner ? ' · owner' : ''}`;
+      $('meAvatar').textContent = initials(me.name || me.username || '?');
+      $('meAvatar').style.background = me.color || 'linear-gradient(135deg, rgba(139,92,246,0.86), rgba(56,189,248,0.76))';
+
+      $('accountCountBadge').textContent = String(state.accounts.length);
+      $('roomCountBadge').textContent = String(state.rooms.length);
+      $('agentCountBadge').textContent = String(state.agents.length);
+      $('allAccountCountBadge').textContent = String(state.accounts.length);
+
+      renderDirectory('accounts', state.accounts, 'No accounts yet.', (a) => `
+        <div class="list-card">
+          <div class="avatar small" style="background:${esc(a.color)}">${esc(initials(a.name))}</div>
+          <div>
+            <div class="title">${esc(a.name)}${a.is_owner ? ' 👑' : ''}</div>
+            <div class="small muted">${esc(a.account_type)} · ${esc(a.role || 'No role')}</div>
+          </div>
+        </div>`);
+
+      renderDirectory('agents', state.agents, 'No agent accounts yet.', (a) => `
+        <div class="list-card">
+          <div class="avatar small" style="background:${esc(a.color)}">${esc(initials(a.name))}</div>
+          <div>
+            <div class="title">${esc(a.name)}</div>
+            <div class="small muted">${esc(a.role || 'Agent')}</div>
+          </div>
+        </div>`);
+
+      $('rooms').innerHTML = state.rooms.length ? state.rooms.map((r) => `
+        <button class="room-btn ${r.id === state.roomId ? 'active' : ''}" onclick="selectRoom(${r.id})">
+          <div class="avatar small ${r.room_type === 'direct' ? 'direct' : 'room'}">${r.room_type === 'direct' ? 'DM' : '#'}</div>
+          <div style="min-width:0;">
+            <div class="title">${esc(displayRoomName(r))}</div>
+            <div class="sub">${esc(roomLabel(r.room_type))} · created by ${esc(r.created_by)}</div>
+          </div>
+          <div class="room-meta">${shortFmt(r.created_at)}</div>
+        </button>`).join('') : `<div class="helper-text">No rooms yet. Create a group or direct chat to begin.</div>`;
+
+      const options = state.accounts
+        .filter((a) => a.id !== state.me.id)
+        .map((a) => `<option value="${a.id}">${esc(a.name)}${a.is_owner ? ' (owner)' : ''}</option>`)
+        .join('');
+      $('directTarget').innerHTML = options || '<option value="">No other accounts</option>';
+      $('addMemberSelect').innerHTML = options || '<option value="">No members available</option>';
+      $('groupMembers').innerHTML = options;
+    }
+
+    function displayRoomName(room) {
+      if (!room) return 'No room selected';
+      if (room.room_type !== 'direct') return room.name;
+      if (!room.name.startsWith('DM: ')) return room.name || 'Direct message';
+      const ids = room.name.replace(/^DM:\s*/, '').split(' / ');
+      const others = ids.filter((id) => id !== state.me?.id);
+      const names = others.map((id) => state.accounts.find((a) => a.id === id)?.name || id);
+      return names.length ? names.join(', ') : 'Direct message';
+    }
+
+    async function refreshCurrentRoom(reconnectSocket = true) {
+      if (!state.roomId) {
+        $('roomTitle').textContent = 'No room yet';
+        $('roomSubtitle').textContent = 'Create a room from the left to start chatting.';
+        $('roomTypeBadge').textContent = '—';
+        $('memberCount').textContent = '0';
+        $('messageCount').textContent = '0';
+        $('messages').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-card">
+              <div class="avatar room" style="margin:0 auto">AT</div>
+              <h3>No room selected</h3>
+              <p>Create a group or open a direct chat to see messages here.</p>
+            </div>
+          </div>`;
+        $('members').innerHTML = '<div class="helper-text">Pick a room to see who is in it.</div>';
+        if (state.socket) {
+          state.socket.close();
+          state.socket = null;
+        }
+        return;
+      }
+
+      const room = state.rooms.find((r) => r.id === state.roomId);
+      $('roomTitle').textContent = displayRoomName(room);
+      $('roomSubtitle').textContent = room ? `${roomLabel(room.room_type)} · created by ${room.created_by}` : 'No room selected';
+      $('roomTypeBadge').textContent = room ? room.room_type : '—';
+
+      const messages = await api(`/api/rooms/${state.roomId}/messages`);
+      state.members = await api(`/api/rooms/${state.roomId}/members`);
+      renderMembers();
+      renderMessages(messages);
+      if (reconnectSocket) connectRoomSocket();
+    }
+
+    async function createGroup() {
+      const memberIds = [...$('groupMembers').selectedOptions].map((o) => o.value);
+      const room = await api('/api/rooms', {
+        method: 'POST',
+        body: JSON.stringify({ name: $('groupName').value, room_type: 'group', member_ids: memberIds })
+      });
+      $('groupName').value = '';
+      state.roomId = room.id;
+      state.rooms = await api('/api/rooms');
+      renderSidebars();
+      await refreshCurrentRoom(true);
+    }
+
+    async function createDirect() {
+      const target = $('directTarget').value;
+      if (!target) return;
+      const room = await api('/api/rooms', {
+        method: 'POST',
+        body: JSON.stringify({ name: '', room_type: 'direct', member_ids: [target] })
+      });
+      state.roomId = room.id;
+      state.rooms = await api('/api/rooms');
+      renderSidebars();
+      await refreshCurrentRoom(true);
+    }
+
+    async function sendMessage() {
+      if (!state.roomId) return;
+      const content = $('content').value.trim();
+      if (!content) return;
+      await api(`/api/rooms/${state.roomId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content })
+      });
+      $('content').value = '';
+    }
+
+    async function addMember() {
+      const id = $('addMemberSelect').value;
+      if (!id || !state.roomId) return;
+      await api(`/api/rooms/${state.roomId}/members/${id}`, { method: 'POST' });
+      await refreshCurrentRoom(false);
+    }
+
+    function selectRoom(id) {
+      state.roomId = id;
+      renderSidebars();
+      refreshCurrentRoom(true);
+    }
+
+    function toggleSidebar() {
+      const sidebar = $('sidebar');
+      const hidden = getComputedStyle(sidebar).display === 'none';
+      sidebar.style.display = hidden ? 'grid' : 'none';
+    }
+
+    function toggleRightbar() {
+      const rightbar = $('rightbar');
+      const hidden = getComputedStyle(rightbar).display === 'none';
+      rightbar.style.display = hidden ? 'grid' : 'none';
+    }
+
+    window.selectRoom = selectRoom;
+
+    $('showLogin').onclick = () => setAuthMode('login');
+    $('showSignup').onclick = () => setAuthMode('signup');
+    $('loginBtn').onclick = login;
+    $('signupBtn').onclick = signup;
+    $('createGroupBtn').onclick = createGroup;
+    $('createDirectBtn').onclick = createDirect;
+    $('sendBtn').onclick = sendMessage;
+    $('addMemberBtn').onclick = addMember;
+    $('refreshBtn').onclick = loadAll;
+    $('logoutBtn').onclick = () => {
+      if (state.socket) state.socket.close();
+      localStorage.removeItem('agentTalkToken');
+      state.token = '';
+      location.reload();
+    };
+    $('mobileRoomsBtn').onclick = toggleSidebar;
+    $('mobileActionsBtn').onclick = toggleRightbar;
+    $('content').addEventListener('keydown', (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') sendMessage();
+    });
+
+    setAuthMode('signup');
+    bootstrap();
+  </script>
 </body>
 </html>
