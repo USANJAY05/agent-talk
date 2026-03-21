@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class Base(DeclarativeBase):
     pass
@@ -168,6 +168,8 @@ class MessageOut(BaseModel):
     created_at: datetime
 
 class AttentionEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     account_id: str
     room_id: int
@@ -176,3 +178,13 @@ class AttentionEventOut(BaseModel):
     preview: str
     consumed: bool
     created_at: datetime
+
+class EventEnvelope(BaseModel):
+    type: str
+    event_scope: Literal["room", "account"]
+    room_id: int | None = None
+    account_ids: list[str] = Field(default_factory=list)
+    actor_account_id: str | None = None
+    message: MessageOut | None = None
+    room: RoomOut | None = None
+    attention: list[AttentionEventOut] = Field(default_factory=list)

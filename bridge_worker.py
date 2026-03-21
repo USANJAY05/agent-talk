@@ -9,6 +9,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from backend.utils.helpers import normalize_id
+
 BASE_URL = os.environ.get("AGENT_TALK_BASE_URL", "http://127.0.0.1:8010")
 USERNAME = os.environ.get("AGENT_TALK_BRIDGE_USERNAME", "chitti_dev")
 PASSWORD = os.environ.get("AGENT_TALK_BRIDGE_PASSWORD", "devpass123")
@@ -40,7 +42,7 @@ def save_state(state: dict[str, Any]) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
-def ensure_login() -> str:
+def ensure_login() -> dict[str, Any]:
     try:
         signup = api(
             "/api/signup",
@@ -55,12 +57,12 @@ def ensure_login() -> str:
                 "invite_token": INVITE_TOKEN,
             },
         )
-        return signup["token"]
+        return signup
     except urllib.error.HTTPError as e:
         body = e.read().decode()
         if e.code == 400 and "Username already exists" in body:
             login = api("/api/login", method="POST", data={"username": USERNAME, "password": PASSWORD})
-            return login["token"]
+            return login
         raise
 
 
@@ -89,20 +91,22 @@ def group_events_by_room(events: list[dict[str, Any]]) -> list[tuple[int, list[d
     return [(room_id, grouped[room_id]) for room_id in order]
 
 
-def should_reply(room_events: list[dict[str, Any]], messages: list[dict[str, Any]]) -> bool:
+def should_reply(room_events: list[dict[str, Any]], messages: list[dict[str, Any]], self_account_id: str) -> bool:
     latest_event = room_events[-1]
     if latest_event["event_type"] == "message.created":
         if latest_event.get("message_id") is None:
             return False
         latest_message = next((m for m in reversed(messages) if m["id"] == latest_event["message_id"]), None)
-        return bool(latest_message and latest_message["account_id"] != USERNAME)
-    return any(message["account_id"] != USERNAME for message in messages[-3:])
+        return bool(latest_message and latest_message["account_id"] != self_account_id)
+    return any(message["account_id"] != self_account_id for message in messages[-3:])
 
 
 def main() -> None:
     state = load_state()
-    token = ensure_login()
-    print(f"bridge worker online as {USERNAME}")
+    session = ensure_login()
+    token = session["token"]
+    self_account_id = session.get("account", {}).get("id") or normalize_id(USERNAME)
+    print(f"bridge worker online as {USERNAME} ({self_account_id})")
     while True:
         try:
             events = api("/api/attention", token=token)
@@ -110,7 +114,7 @@ def main() -> None:
                 messages = api(f"/api/rooms/{room_id}/messages", token=token)
                 room_members = api(f"/api/rooms/{room_id}/members", token=token)
                 recent = messages[-8:]
-                if not should_reply(room_events, recent):
+                if not should_reply(room_events, recent, self_account_id=self_account_id):
                     for event in room_events:
                         api(f"/api/attention/{event['id']}/ack", method="POST", token=token, data={})
                     continue
