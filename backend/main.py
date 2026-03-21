@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import secrets
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -181,6 +183,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+class RoomWebSocketHub:
+    def __init__(self) -> None:
+        self.connections: dict[int, set[WebSocket]] = defaultdict(set)
+
+    async def connect(self, room_id: int, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.connections[room_id].add(websocket)
+
+    def disconnect(self, room_id: int, websocket: WebSocket) -> None:
+        sockets = self.connections.get(room_id)
+        if not sockets:
+            return
+        sockets.discard(websocket)
+        if not sockets:
+            self.connections.pop(room_id, None)
+
+    async def broadcast(self, room_id: int, payload: dict) -> None:
+        sockets = list(self.connections.get(room_id, set()))
+        stale: list[WebSocket] = []
+        for socket in sockets:
+            try:
+                await socket.send_json(payload)
+            except Exception:
+                stale.append(socket)
+        for socket in stale:
+            self.disconnect(room_id, socket)
+
+
+ws_hub = RoomWebSocketHub()
 
 
 def get_db():
@@ -415,7 +448,9 @@ def create_room(payload: RoomCreate, current: Account = Depends(get_current_acco
                 ensure_member(db, room.id, member.id)
     create_attention_events(db, room.id, current.id, None, f"New {room.room_type} room created: {room.name}", event_type="room.created")
     db.commit()
-    return RoomOut(id=room.id, name=room.name, room_type=room.room_type, created_by=room.created_by, created_at=room.created_at)
+    room_out = RoomOut(id=room.id, name=room.name, room_type=room.room_type, created_by=room.created_by, created_at=room.created_at)
+    asyncio.run(ws_hub.broadcast(room.id, {"type": "room.created", "room": room_out.model_dump()}))
+    return room_out
 
 
 @app.get("/api/rooms/{room_id}/members", response_model=list[AccountOut])
@@ -440,6 +475,7 @@ def add_room_member(room_id: int, account_id: str, current: Account = Depends(ge
     ensure_owner_in_room(db, room_id)
     create_attention_events(db, room_id, current.id, None, f"{member.name} was added to room {room.name}", event_type="room.member_added")
     db.commit()
+    asyncio.run(ws_hub.broadcast(room_id, {"type": "room.member_added", "room_id": room_id, "account_id": member.id, "account_name": member.name}))
     return {"status": "ok"}
 
 
@@ -462,7 +498,9 @@ def create_message(room_id: int, payload: MessageCreate, current: Account = Depe
     create_attention_events(db, room_id, current.id, message.id, message.content)
     db.commit()
     db.refresh(message)
-    return message_out(message)
+    payload = message_out(message)
+    asyncio.run(ws_hub.broadcast(room_id, {"type": "message.created", "room_id": room_id, "message": payload.model_dump()}))
+    return payload
 
 
 @app.get("/api/search")
@@ -504,6 +542,33 @@ def ack_attention(event_id: int, current: Account = Depends(get_current_account)
     event.consumed = True
     db.commit()
     return {"status": "ok"}
+
+
+@app.websocket("/ws/rooms/{room_id}")
+async def room_socket(websocket: WebSocket, room_id: int):
+    token = websocket.query_params.get("token", "")
+    if not token:
+        await websocket.close(code=4401)
+        return
+    db = SessionLocal()
+    try:
+        auth = db.scalar(select(AuthSession).where(AuthSession.token == token))
+        if not auth:
+            await websocket.close(code=4401)
+            return
+        allowed = db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == auth.account_id))
+        if not allowed:
+            await websocket.close(code=4403)
+            return
+    finally:
+        db.close()
+
+    await ws_hub.connect(room_id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_hub.disconnect(room_id, websocket)
 
 
 @app.get("/", include_in_schema=False)
