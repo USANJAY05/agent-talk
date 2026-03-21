@@ -15,6 +15,8 @@ PASSWORD = os.environ.get("AGENT_TALK_BRIDGE_PASSWORD", "devpass123")
 AGENT_ID = os.environ.get("OPENCLAW_BRIDGE_AGENT", "developer")
 STATE_FILE = Path(os.environ.get("AGENT_TALK_BRIDGE_STATE", ".bridge-state.json"))
 POLL_SECONDS = float(os.environ.get("AGENT_TALK_POLL_SECONDS", "3"))
+ROLE = os.environ.get("AGENT_TALK_BRIDGE_ROLE", "Agent bridge")
+INVITE_TOKEN = os.environ.get("AGENT_TALK_INVITE_TOKEN", None)
 
 
 def api(path: str, method: str = "GET", data: dict[str, Any] | None = None, token: str | None = None):
@@ -48,8 +50,9 @@ def ensure_login() -> str:
                 "username": USERNAME,
                 "password": PASSWORD,
                 "account_type": "agent",
-                "role": "Developer agent bridge",
+                "role": ROLE,
                 "color": "#2563eb",
+                "invite_token": INVITE_TOKEN,
             },
         )
         return signup["token"]
@@ -115,10 +118,10 @@ def main() -> None:
                 member_names = ", ".join([m["name"] for m in room_members])
                 latest_event = room_events[-1]
                 prompt = (
-                    "You are chitti_dev inside the Agent Talk app. Reply as a helpful developer agent in one short message. "
+                    f"You are {USERNAME} inside the Agent Talk app. Reply as a helpful agent in one short message. "
                     "You are chatting inside a shared app room, not Telegram. Avoid markdown tables. Keep it concise. "
                     f"Room members: {member_names}. "
-                    f"Latest event: {latest_event['event_type']} / {latest_event['preview']}. "
+                    f"Latest event: {latest_event['event_type']} / {latest_event.get('preview', '')}. "
                     f"Recent transcript:\n{transcript}\n\n"
                     "If no response is needed, reply exactly NO_REPLY. Otherwise write only the reply text."
                 )
