@@ -229,6 +229,8 @@
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.07);
     }
+    .toolbar-input { margin-top: 12px; }
+    .desktop-only { display: block; }
 
     .room-list { display: grid; gap: 10px; }
     .room-btn {
@@ -367,6 +369,21 @@
     .mobile-topbar button { flex: 1; }
 
     @media (max-width: 1240px) {
+      .desktop-only { display: none; }
+      .panel.mobile-open {
+        display: grid !important;
+        position: fixed;
+        inset: 10px;
+        z-index: 30;
+      }
+      .panel.mobile-open::after {
+        content: "Tap the toggle again to close";
+        position: absolute;
+        right: 18px;
+        top: 18px;
+        font-size: 0.76rem;
+        color: var(--muted);
+      }
       .app { grid-template-columns: 290px minmax(0, 1fr); }
       .rightbar { display: none; }
     }
@@ -570,7 +587,8 @@
               <div class="section-title">Your rooms</div>
               <div id="roomCountBadge" class="pill-count">0</div>
             </div>
-            <div id="rooms" class="room-list"></div>
+            <input id="roomSearch" class="toolbar-input" placeholder="Search rooms" />
+            <div id="rooms" class="room-list" style="margin-top:12px"></div>
           </div>
         </aside>
 
@@ -627,6 +645,7 @@
           <div class="rightbar-header">
             <div class="section-title">Workspace overview</div>
             <div class="helper-text" style="margin-top:8px">A quick scan of agents, room members, and all accounts.</div>
+            <input id="accountSearch" class="toolbar-input desktop-only" placeholder="Filter people" />
           </div>
           <div class="panel-scroll">
             <div class="panel-section">
@@ -666,7 +685,9 @@
       roomId: null,
       members: [],
       socket: null,
-      messages: []
+      messages: [],
+      roomSearch: '',
+      accountSearch: ''
     };
 
     async function api(path, opt = {}) {
@@ -761,6 +782,14 @@
 
     function renderDirectory(targetId, items, emptyText, formatter) {
       $(targetId).innerHTML = items.length ? items.map(formatter).join('') : `<div class="helper-text">${esc(emptyText)}</div>`;
+    }
+
+    function matchesAccountFilter(account) {
+      const q = state.accountSearch.trim().toLowerCase();
+      if (!q) return true;
+      return [account.name, account.role, account.account_type, account.username, account.id]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q));
     }
 
     function connectRoomSocket() {
@@ -871,7 +900,17 @@
       $('agentCountBadge').textContent = String(state.agents.length);
       $('allAccountCountBadge').textContent = String(state.accounts.length);
 
-      renderDirectory('accounts', state.accounts, 'No accounts yet.', (a) => `
+      const filteredAccounts = state.accounts.filter(matchesAccountFilter);
+      const filteredAgents = state.agents.filter(matchesAccountFilter);
+      const filteredRooms = state.rooms.filter((r) => {
+        const q = state.roomSearch.trim().toLowerCase();
+        if (!q) return true;
+        return [displayRoomName(r), r.room_type, r.created_by]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(q));
+      });
+
+      renderDirectory('accounts', filteredAccounts, state.accountSearch ? 'No accounts match this filter.' : 'No accounts yet.', (a) => `
         <div class="list-card">
           <div class="avatar small" style="background:${esc(a.color)}">${esc(initials(a.name))}</div>
           <div>
@@ -880,7 +919,7 @@
           </div>
         </div>`);
 
-      renderDirectory('agents', state.agents, 'No agent accounts yet.', (a) => `
+      renderDirectory('agents', filteredAgents, state.accountSearch ? 'No agents match this filter.' : 'No agent accounts yet.', (a) => `
         <div class="list-card">
           <div class="avatar small" style="background:${esc(a.color)}">${esc(initials(a.name))}</div>
           <div>
@@ -889,7 +928,7 @@
           </div>
         </div>`);
 
-      $('rooms').innerHTML = state.rooms.length ? state.rooms.map((r) => `
+      $('rooms').innerHTML = filteredRooms.length ? filteredRooms.map((r) => `
         <button class="room-btn ${r.id === state.roomId ? 'active' : ''}" onclick="selectRoom(${r.id})">
           <div class="avatar small ${r.room_type === 'direct' ? 'direct' : 'room'}">${r.room_type === 'direct' ? 'DM' : '#'}</div>
           <div style="min-width:0;">
@@ -897,7 +936,7 @@
             <div class="sub">${esc(roomLabel(r.room_type))} · created by ${esc(r.created_by)}</div>
           </div>
           <div class="room-meta">${shortFmt(r.created_at)}</div>
-        </button>`).join('') : `<div class="helper-text">No rooms yet. Create a group or direct chat to begin.</div>`;
+        </button>`).join('') : `<div class="helper-text">${esc(state.roomSearch ? 'No rooms match this search.' : 'No rooms yet. Create a group or direct chat to begin.')}</div>`;
 
       const options = state.accounts
         .filter((a) => a.id !== state.me.id)
@@ -1000,19 +1039,28 @@
     function selectRoom(id) {
       state.roomId = id;
       renderSidebars();
+      closeMobilePanels();
       refreshCurrentRoom(true);
+    }
+
+    function closeMobilePanels(exceptId = '') {
+      ['sidebar', 'rightbar'].forEach((id) => {
+        if (id !== exceptId) $(id).classList.remove('mobile-open');
+      });
     }
 
     function toggleSidebar() {
       const sidebar = $('sidebar');
-      const hidden = getComputedStyle(sidebar).display === 'none';
-      sidebar.style.display = hidden ? 'grid' : 'none';
+      const willOpen = !sidebar.classList.contains('mobile-open');
+      closeMobilePanels(willOpen ? 'sidebar' : '');
+      sidebar.classList.toggle('mobile-open', willOpen);
     }
 
     function toggleRightbar() {
       const rightbar = $('rightbar');
-      const hidden = getComputedStyle(rightbar).display === 'none';
-      rightbar.style.display = hidden ? 'grid' : 'none';
+      const willOpen = !rightbar.classList.contains('mobile-open');
+      closeMobilePanels(willOpen ? 'rightbar' : '');
+      rightbar.classList.toggle('mobile-open', willOpen);
     }
 
     window.selectRoom = selectRoom;
@@ -1034,6 +1082,17 @@
     };
     $('mobileRoomsBtn').onclick = toggleSidebar;
     $('mobileActionsBtn').onclick = toggleRightbar;
+    $('roomSearch').addEventListener('input', (event) => {
+      state.roomSearch = event.target.value;
+      renderSidebars();
+    });
+    $('accountSearch').addEventListener('input', (event) => {
+      state.accountSearch = event.target.value;
+      renderSidebars();
+    });
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 1080) closeMobilePanels();
+    });
     $('content').addEventListener('keydown', (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') sendMessage();
     });
