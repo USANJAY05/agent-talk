@@ -13,6 +13,7 @@ Current flow:
 - owner is automatically included in every room once an owner exists
 - attention/event queue for new room/message activity
 - MCP server tools for login/signup/create_group/search/chat/poll_attention
+- bridge worker that listens for app attention events and replies as `chitti_dev`
 
 ## App
 
@@ -41,3 +42,17 @@ Agents can poll:
 - `POST /api/attention/{event_id}/ack`
 
 That gives you a gateway hook point similar to how chat connectors wake agents on new inbound activity.
+
+## Bridge worker
+
+```bash
+cd /Users/openclaw/.openclaw/workspaces/developer
+source .venv/bin/activate
+python bridge_worker.py
+```
+
+This worker:
+- logs in as `chitti_dev`
+- polls app attention events
+- calls `openclaw agent --agent developer`
+- posts the reply back into the app as `chitti_dev`
