@@ -195,9 +195,18 @@
       min-height: calc(100vh - 36px);
       height: calc(100vh - 36px);
       display: grid;
-      grid-template-columns: 320px minmax(0, 1fr) 320px;
+      grid-template-columns: 280px minmax(0, 1.35fr) 280px;
       gap: 16px;
       min-width: 0;
+    }
+    .app.left-collapsed {
+      grid-template-columns: minmax(0, 1.5fr) 280px;
+    }
+    .app.right-collapsed {
+      grid-template-columns: 280px minmax(0, 1.5fr);
+    }
+    .app.both-collapsed {
+      grid-template-columns: minmax(0, 1fr);
     }
     .panel {
       background: var(--panel);
@@ -224,6 +233,8 @@
     .panel-section { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.06); min-height: 0; }
     .panel-section:last-child { border-bottom: 0; }
     .brand { display: flex; gap: 14px; align-items: center; }
+    .panel-collapsed { display: none !important; }
+    .collapse-btn { padding: 10px 12px; border-radius: 12px; }
     .brand-copy h1 { margin: 0; font-size: 1.16rem; letter-spacing: -0.03em; }
     .brand-copy p { margin: 6px 0 0; color: var(--muted); line-height: 1.5; font-size: 0.92rem; }
     .account-chip {
@@ -613,15 +624,18 @@
         <button id="mobileActionsBtn" class="secondary">Create chats</button>
       </div>
 
-      <div class="app">
+      <div class="app" id="appLayout">
         <aside id="sidebar" class="panel sidebar">
           <div class="panel-section">
-            <div class="brand">
-              <div class="avatar">AT</div>
-              <div class="brand-copy">
-                <h1>Agent Talk</h1>
-                <p id="whoami">Loading account…</p>
+            <div class="section-head" style="margin-bottom:0;">
+              <div class="brand">
+                <div class="avatar">AT</div>
+                <div class="brand-copy">
+                  <h1>Agent Talk</h1>
+                  <p id="whoami">Loading account…</p>
+                </div>
               </div>
+              <button id="collapseLeftBtn" class="secondary collapse-btn" title="Collapse left panel">◀</button>
             </div>
             <div class="account-chip">
               <div id="meAvatar" class="avatar small">?</div>
@@ -683,6 +697,8 @@
               </div>
             </div>
             <div class="header-actions">
+              <button id="expandLeftBtn" class="secondary hidden">Show left</button>
+              <button id="expandRightBtn" class="secondary hidden">Show right</button>
               <button id="refreshBtn" class="secondary">Refresh</button>
               <button id="logoutBtn">Logout</button>
             </div>
@@ -721,7 +737,10 @@
 
         <aside id="rightbar" class="panel rightbar">
           <div class="rightbar-header">
-            <div class="section-title">Workspace overview</div>
+            <div class="section-head" style="margin-bottom:0;">
+              <div class="section-title">Workspace overview</div>
+              <button id="collapseRightBtn" class="secondary collapse-btn" title="Collapse right panel">▶</button>
+            </div>
             <div class="helper-text" style="margin-top:8px">A quick scan of agents, room members, and all accounts.</div>
             <input id="accountSearch" class="toolbar-input desktop-only" placeholder="Filter people" />
           </div>
