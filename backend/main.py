@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import secrets
+import threading
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -174,7 +178,7 @@ class AttentionEventOut(BaseModel):
     created_at: datetime
 
 
-app = FastAPI(title="Agent Talk", version="0.3.1")
+app = FastAPI(title="Agent Talk", version="0.3.2")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -183,6 +187,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+MAIN_LOOP: asyncio.AbstractEventLoop | None = None
 
 
 class RoomWebSocketHub:
@@ -204,16 +211,58 @@ class RoomWebSocketHub:
     async def broadcast(self, room_id: int, payload: dict) -> None:
         sockets = list(self.connections.get(room_id, set()))
         stale: list[WebSocket] = []
+        encoded_payload = jsonable_encoder(payload)
         for socket in sockets:
             try:
-                await socket.send_json(payload)
+                await socket.send_json(encoded_payload)
             except Exception:
                 stale.append(socket)
         for socket in stale:
             self.disconnect(room_id, socket)
 
 
+class AccountWebSocketHub:
+    def __init__(self) -> None:
+        self.connections: dict[str, set[WebSocket]] = defaultdict(set)
+
+    async def connect(self, account_id: str, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.connections[account_id].add(websocket)
+
+    def disconnect(self, account_id: str, websocket: WebSocket) -> None:
+        sockets = self.connections.get(account_id)
+        if not sockets:
+            return
+        sockets.discard(websocket)
+        if not sockets:
+            self.connections.pop(account_id, None)
+
+    async def broadcast_many(self, account_ids: list[str], payload: dict) -> None:
+        stale: list[tuple[str, WebSocket]] = []
+        encoded_payload = jsonable_encoder(payload)
+        for account_id in sorted(set(account_ids)):
+            for socket in list(self.connections.get(account_id, set())):
+                try:
+                    await socket.send_json(encoded_payload)
+                except Exception:
+                    stale.append((account_id, socket))
+        for account_id, socket in stale:
+            self.disconnect(account_id, socket)
+
+
 ws_hub = RoomWebSocketHub()
+events_hub = AccountWebSocketHub()
+
+
+def dispatch(coro) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        if MAIN_LOOP is None or MAIN_LOOP.is_closed():
+            return
+        asyncio.run_coroutine_threadsafe(coro, MAIN_LOOP)
+        return
+    loop.create_task(coro)
 
 
 def get_db():
@@ -242,6 +291,10 @@ def account_out(account: Account) -> AccountOut:
         color=account.color,
         is_owner=account.is_owner,
     )
+
+
+def room_out(room: Room) -> RoomOut:
+    return RoomOut(id=room.id, name=room.name, room_type=room.room_type, created_by=room.created_by, created_at=room.created_at)
 
 
 def message_out(message: Message) -> MessageOut:
@@ -273,6 +326,16 @@ def ensure_owner_in_room(db: Session, room_id: int) -> None:
     owner = owner_account(db)
     if owner:
         ensure_member(db, room_id, owner.id)
+
+
+def member_ids_for_room(db: Session, room_id: int) -> list[str]:
+    return list(db.scalars(select(RoomMembership.account_id).where(RoomMembership.room_id == room_id)).all())
+
+
+async def broadcast_room_event(db: Session, room_id: int, payload: dict, account_ids: list[str] | None = None) -> None:
+    targets = account_ids if account_ids is not None else member_ids_for_room(db, room_id)
+    await ws_hub.broadcast(room_id, payload)
+    await events_hub.broadcast_many(targets, payload)
 
 
 def create_attention_events(db: Session, room_id: int, sender_id: str, message_id: int | None, preview: str, event_type: str = "message.created") -> None:
@@ -312,9 +375,11 @@ def reset_legacy_db_if_needed() -> None:
 
 
 @app.on_event("startup")
-def startup() -> None:
+async def startup() -> None:
+    global MAIN_LOOP
     reset_legacy_db_if_needed()
     Base.metadata.create_all(bind=engine)
+    MAIN_LOOP = asyncio.get_running_loop()
 
 
 @app.get("/api/health")
@@ -412,22 +477,23 @@ def list_agents(current: Account = Depends(get_current_account), db: Session = D
 def list_rooms(current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
     memberships = db.scalars(select(RoomMembership).where(RoomMembership.account_id == current.id).order_by(RoomMembership.joined_at.desc())).all()
     rooms = [m.room for m in memberships]
-    return [RoomOut(id=r.id, name=r.name, room_type=r.room_type, created_by=r.created_by, created_at=r.created_at) for r in rooms]
+    return [room_out(r) for r in rooms]
 
 
 @app.post("/api/rooms", response_model=RoomOut)
-def create_room(payload: RoomCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+async def create_room(payload: RoomCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
     if payload.room_type == "direct":
         if len(payload.member_ids) != 1:
             raise HTTPException(status_code=400, detail="Direct chat needs exactly one other member")
         other = db.get(Account, payload.member_ids[0])
         if not other:
             raise HTTPException(status_code=404, detail="Account not found")
-        ids = sorted({current.id, other.id, *( [owner_account(db).id] if owner_account(db) else [] )})
+        owner = owner_account(db)
+        ids = sorted({current.id, other.id, *([owner.id] if owner else [])})
         direct_name = "DM: " + " / ".join(ids)
         existing = db.scalar(select(Room).where(Room.name == direct_name))
         if existing:
-            return RoomOut(id=existing.id, name=existing.name, room_type=existing.room_type, created_by=existing.created_by, created_at=existing.created_at)
+            return room_out(existing)
         room = Room(name=direct_name, room_type="direct", created_by=current.id)
         db.add(room)
         db.flush()
@@ -448,9 +514,10 @@ def create_room(payload: RoomCreate, current: Account = Depends(get_current_acco
                 ensure_member(db, room.id, member.id)
     create_attention_events(db, room.id, current.id, None, f"New {room.room_type} room created: {room.name}", event_type="room.created")
     db.commit()
-    room_out = RoomOut(id=room.id, name=room.name, room_type=room.room_type, created_by=room.created_by, created_at=room.created_at)
-    asyncio.run(ws_hub.broadcast(room.id, {"type": "room.created", "room": room_out.model_dump()}))
-    return room_out
+    db.refresh(room)
+    created_room = room_out(room)
+    await broadcast_room_event(db, room.id, {"type": "room.created", "room": created_room.model_dump()})
+    return created_room
 
 
 @app.get("/api/rooms/{room_id}/members", response_model=list[AccountOut])
@@ -462,7 +529,7 @@ def room_members(room_id: int, current: Account = Depends(get_current_account), 
 
 
 @app.post("/api/rooms/{room_id}/members/{account_id}")
-def add_room_member(room_id: int, account_id: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+async def add_room_member(room_id: int, account_id: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
     room = db.get(Room, room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
@@ -475,7 +542,8 @@ def add_room_member(room_id: int, account_id: str, current: Account = Depends(ge
     ensure_owner_in_room(db, room_id)
     create_attention_events(db, room_id, current.id, None, f"{member.name} was added to room {room.name}", event_type="room.member_added")
     db.commit()
-    asyncio.run(ws_hub.broadcast(room_id, {"type": "room.member_added", "room_id": room_id, "account_id": member.id, "account_name": member.name}))
+    payload = {"type": "room.member_added", "room_id": room_id, "account_id": member.id, "account_name": member.name}
+    await broadcast_room_event(db, room_id, payload)
     return {"status": "ok"}
 
 
@@ -488,7 +556,7 @@ def room_messages(room_id: int, current: Account = Depends(get_current_account),
 
 
 @app.post("/api/rooms/{room_id}/messages", response_model=MessageOut)
-def create_message(room_id: int, payload: MessageCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+async def create_message(room_id: int, payload: MessageCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
     if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == current.id)):
         raise HTTPException(status_code=403, detail="Not in this room")
     ensure_owner_in_room(db, room_id)
@@ -498,9 +566,9 @@ def create_message(room_id: int, payload: MessageCreate, current: Account = Depe
     create_attention_events(db, room_id, current.id, message.id, message.content)
     db.commit()
     db.refresh(message)
-    payload = message_out(message)
-    asyncio.run(ws_hub.broadcast(room_id, {"type": "message.created", "room_id": room_id, "message": payload.model_dump()}))
-    return payload
+    created_message = message_out(message)
+    await broadcast_room_event(db, room_id, {"type": "message.created", "room_id": room_id, "message": created_message.model_dump()})
+    return created_message
 
 
 @app.get("/api/search")
@@ -569,6 +637,30 @@ async def room_socket(websocket: WebSocket, room_id: int):
             await websocket.receive_text()
     except WebSocketDisconnect:
         ws_hub.disconnect(room_id, websocket)
+
+
+@app.websocket("/ws/events")
+async def event_socket(websocket: WebSocket):
+    token = websocket.query_params.get("token", "")
+    if not token:
+        await websocket.close(code=4401)
+        return
+    db = SessionLocal()
+    try:
+        auth = db.scalar(select(AuthSession).where(AuthSession.token == token))
+        if not auth:
+            await websocket.close(code=4401)
+            return
+        account_id = auth.account_id
+    finally:
+        db.close()
+
+    await events_hub.connect(account_id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        events_hub.disconnect(account_id, websocket)
 
 
 @app.get("/", include_in_schema=False)
