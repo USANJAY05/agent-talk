@@ -2,8 +2,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import secrets
+from typing import Any
 from pathlib import Path
-from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,7 +15,7 @@ from backend.models.database import (
     Base, Account, Room, Message, RoomMembership, AttentionEvent,
     AccountOut, SessionOut, SignupRequest, LoginRequest, UpdateProfile,
     VisibilityUpdate, WhitelistCreate, InviteOut, InviteCreate, RoomCreate, RoomOut,
-    MessageCreate, MessageOut, AttentionEventOut, AgentInvite
+    MessageCreate, MessageOut, AttentionEventOut, AgentInvite, AuthSession, EventEnvelope
 )
 
 from backend.utils.helpers import (
@@ -26,7 +27,7 @@ from backend.utils.helpers import (
 from backend.utils.sockets import RoomWebSocketHub, AccountWebSocketHub
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "agent_talk.sqlite3"
+DB_PATH = Path("/tmp/agent-talk.sqlite3")
 STATIC_DIR = BASE_DIR / "frontend" / "dist"
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
@@ -63,11 +64,36 @@ def get_current_account(authorization: str | None = Header(default=None), db: Se
         raise HTTPException(status_code=401, detail="Invalid session")
     return account
 
-async def broadcast_room_event(db: Session, room_id: int, payload: dict, account_ids: list[str] | None = None) -> None:
+def build_event_envelope(
+    *,
+    event_type: str,
+    event_scope: str,
+    room_id: int | None = None,
+    account_ids: list[str] | None = None,
+    actor_account_id: str | None = None,
+    room: RoomOut | None = None,
+    message: MessageOut | None = None,
+    attention: list[AttentionEventOut] | None = None,
+) -> dict[str, Any]:
+    return EventEnvelope(
+        type=event_type,
+        event_scope=event_scope,
+        room_id=room_id,
+        account_ids=account_ids or [],
+        actor_account_id=actor_account_id,
+        room=room,
+        message=message,
+        attention=attention or [],
+    ).model_dump()
+
+async def broadcast_room_event(db: Session, room_id: int, payload: dict[str, Any], account_ids: list[str] | None = None) -> None:
     targets = account_ids if account_ids is not None else member_ids_for_room(db, room_id)
     allowed_account_ids = set(targets)
     await ws_hub.broadcast(room_id, payload, allowed_account_ids=allowed_account_ids)
     await events_hub.broadcast_many(targets, payload)
+
+async def broadcast_attention_events(account_ids: list[str], payload: dict[str, Any]) -> None:
+    await events_hub.broadcast_many(account_ids, payload)
 
 def reset_legacy_db_if_needed() -> None:
     if not DB_PATH.exists():
@@ -238,7 +264,18 @@ async def create_room(payload: RoomCreate, current: Account = Depends(get_curren
     db.commit()
     db.refresh(room)
     res = room_out(room)
-    await broadcast_room_event(db, room.id, {"type": "room.created", "room": res.model_dump()})
+    await broadcast_room_event(
+        db,
+        room.id,
+        build_event_envelope(
+            event_type="room.created",
+            event_scope="room",
+            room_id=room.id,
+            account_ids=member_ids_for_room(db, room.id),
+            actor_account_id=current.id,
+            room=res,
+        ),
+    )
     return res
 
 @app.get("/api/rooms/{room_id}/messages", response_model=list[MessageOut])
@@ -266,7 +303,52 @@ async def create_message(room_id: int, payload: MessageCreate, current: Account 
     db.commit()
     db.refresh(msg)
     res = message_out(msg)
-    await broadcast_room_event(db, room_id, {"type": "message.created", "room_id": room_id, "message": res.model_dump()})
+    room_member_ids = member_ids_for_room(db, room_id)
+    attention_targets = [account_id for account_id in room_member_ids if account_id != current.id]
+    attention_events = attention_feed(current, db)
+    del attention_events  # sender feed is irrelevant; keep explicit for clarity
+
+    await broadcast_room_event(
+        db,
+        room_id,
+        build_event_envelope(
+            event_type="message.created",
+            event_scope="room",
+            room_id=room_id,
+            account_ids=room_member_ids,
+            actor_account_id=current.id,
+            message=res,
+        ),
+    )
+
+    if attention_targets:
+        target_attention: list[AttentionEventOut] = []
+        for account_id in attention_targets:
+            events = db.scalars(
+                select(AttentionEvent)
+                .where(
+                    AttentionEvent.account_id == account_id,
+                    AttentionEvent.room_id == room_id,
+                    AttentionEvent.message_id == msg.id,
+                    AttentionEvent.consumed == False,
+                )
+                .order_by(AttentionEvent.created_at.asc())
+            ).all()
+            if not events:
+                continue
+            target_attention = [AttentionEventOut.model_validate(event) for event in events]
+            await broadcast_attention_events(
+                [account_id],
+                build_event_envelope(
+                    event_type="attention.created",
+                    event_scope="account",
+                    room_id=room_id,
+                    account_ids=[account_id],
+                    actor_account_id=current.id,
+                    message=res,
+                    attention=target_attention,
+                ),
+            )
     return res
 
 @app.get("/api/agent-invites", response_model=list[InviteOut])
@@ -323,6 +405,31 @@ def update_logo(account_id: str, payload: UpdateProfile, current: Account = Depe
     db.refresh(acc)
     return account_out(acc)
 
+@app.put("/api/rooms/{room_id}/logo", response_model=RoomOut)
+def update_room_logo(room_id: int, payload: UpdateProfile, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    room = db.get(Room, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.created_by != current.id and not current.is_owner:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    room.logo_url = payload.logo_url.strip() or None
+    db.commit()
+    db.refresh(room)
+    return room_out(room)
+
+@app.get("/api/accounts/{account_id}/shared_groups", response_model=list[RoomOut])
+def shared_groups(account_id: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    memberships = db.scalars(select(RoomMembership).where(RoomMembership.account_id == current.id)).all()
+    shared: list[RoomOut] = []
+    for membership in memberships:
+        room = membership.room
+        if room.room_type != "group":
+            continue
+        has_other = db.scalar(select(RoomMembership).where(RoomMembership.room_id == room.id, RoomMembership.account_id == account_id))
+        if has_other:
+            shared.append(room_out(room))
+    return shared
+
 @app.put("/api/accounts/{account_id}/activate", response_model=AccountOut)
 def activate_account(account_id: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
     acc = db.get(Account, account_id)
@@ -333,6 +440,44 @@ def activate_account(account_id: str, current: Account = Depends(get_current_acc
     db.refresh(acc)
     return account_out(acc)
 
+# -- Internal / MCP logic --
+
+def search_messages(query: str, current: Account, db: Session) -> list[dict[str, Any]]:
+    my_rooms = db.scalars(select(RoomMembership.room_id).where(RoomMembership.account_id == current.id)).all()
+    if not my_rooms: return []
+    results = db.scalars(
+        select(Message)
+        .where(Message.room_id.in_(my_rooms), Message.content.ilike(f"%{query}%"))
+        .order_by(Message.created_at.desc())
+        .limit(50)
+    ).all()
+    return [message_out(m).model_dump() for m in results]
+
+def attention_feed(current: Account, db: Session) -> list[AttentionEventOut]:
+    events = db.scalars(
+        select(AttentionEvent)
+        .where(AttentionEvent.account_id == current.id, AttentionEvent.consumed == False)
+        .order_by(AttentionEvent.created_at.desc())
+        .limit(50)
+    ).all()
+    return [AttentionEventOut.model_validate(e) for e in events]
+
+def ack_attention(event_id: int, current: Account, db: Session) -> dict[str, Any]:
+    event = db.get(AttentionEvent, event_id)
+    if not event or event.account_id != current.id:
+        raise HTTPException(status_code=404, detail="Event not found")
+    event.consumed = True
+    db.commit()
+    return {"status": "ok"}
+
+@app.get("/api/attention", response_model=list[AttentionEventOut])
+def list_attention(current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    return attention_feed(current, db)
+
+@app.post("/api/attention/{event_id}/ack")
+def acknowledge_attention(event_id: int, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    return ack_attention(event_id, current, db)
+
 # -- WebSockets --
 
 @app.websocket("/ws/rooms/{room_id}")
@@ -340,7 +485,10 @@ async def room_socket(websocket: WebSocket, room_id: int):
     token = websocket.query_params.get("token", "")
     db = SessionLocal()
     acc = get_account_for_token(db, token)
-    if not acc or not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == acc.id)):
+    if not acc:
+        await websocket.close(code=4401)
+        return
+    if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == acc.id)):
         await websocket.close(code=4403)
         return
     db.close()

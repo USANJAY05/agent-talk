@@ -16,7 +16,7 @@ if ! command -v uvicorn &> /dev/null; then
     pip install -r requirements.txt
 fi
 
-uvicorn backend.main:app --host 0.0.0.0 --port 8010 &
+uvicorn backend.main:app --host 0.0.0.0 --port 4000 &
 BACKEND_PID=$!
 
 # Setup frontend
@@ -31,8 +31,8 @@ FRONTEND_PID=$!
 
 echo "========================================="
 echo "Both systems running."
-echo "Frontend: http://localhost:5173"
-echo "Backend: http://localhost:8010"
+echo "Frontend: http://localhost:3002"
+echo "Backend: http://localhost:4000"
 echo "Press Ctrl+C to stop both."
 echo "========================================="
 

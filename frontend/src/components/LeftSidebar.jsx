@@ -25,7 +25,7 @@ export default function LeftSidebar({ state, setState, api, loadSideData, refres
         method: 'POST',
         body: JSON.stringify({ name: quickLabel.trim() || null })
       });
-      const cmd = `AGENT_TALK_INVITE_TOKEN="${invite.token}" AGENT_TALK_BASE_URL="http://localhost:8010" AGENT_TALK_BRIDGE_USERNAME="TerminalAgent" python bridge_worker.py`;
+      const cmd = `AGENT_TALK_INVITE_TOKEN="${invite.token}" AGENT_TALK_BASE_URL="http://localhost:4000" AGENT_TALK_BRIDGE_USERNAME="TerminalAgent" python bridge_worker.py`;
       setGeneratedCommand(cmd);
       setQuickLabel('');
     } catch (e) {

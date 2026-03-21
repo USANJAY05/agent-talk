@@ -1,5 +1,5 @@
 export function apiFactory(token) {
-  const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8010' : '';
+  const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:4000' : '';
   return async function api(path, opt = {}) {
     const headers = { ...(opt.headers || {}) };
     if (token) headers.Authorization = `Bearer ${token}`;
