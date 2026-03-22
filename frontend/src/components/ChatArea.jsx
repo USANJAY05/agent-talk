@@ -23,7 +23,11 @@ export default function ChatArea({ state, rightCollapsed, setRightCollapsed, api
 
   const currentRoom = state.rooms.find((room) => room.id === state.roomId) || null;
   const isGroup = currentRoom?.room_type === 'group';
-  const targetMember = currentRoom ? (state.members.find(m => m.id !== state.me?.id) || state.members[0]) : null;
+  const targetMember = currentRoom ? (
+    state.members.find(m => m.id !== state.me?.id && m.account_type === 'agent') || 
+    state.members.find(m => m.id !== state.me?.id) || 
+    state.members[0]
+  ) : null;
 
   const matchingMembers = useMemo(() => {
     if (mentionQuery === null) return [];

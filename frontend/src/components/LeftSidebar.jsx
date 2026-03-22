@@ -25,7 +25,8 @@ export default function LeftSidebar({ state, setState, api, loadSideData, refres
         method: 'POST',
         body: JSON.stringify({ name: quickLabel.trim() || null })
       });
-      const cmd = `AGENT_TALK_INVITE_TOKEN="${invite.token}" AGENT_TALK_BASE_URL="http://localhost:4000" AGENT_TALK_BRIDGE_USERNAME="TerminalAgent" python bridge_worker.py`;
+      const normalized = quickLabel.trim() ? quickLabel.trim().toLowerCase().replace(/\s+/g, '-') : 'fresh-agent';
+      const cmd = `AGENT_TALK_INVITE_TOKEN="${invite.token}" AGENT_TALK_BASE_URL="http://localhost:8010" AGENT_TALK_BRIDGE_USERNAME="${normalized}" python bridge_worker.py`;
       setGeneratedCommand(cmd);
       setQuickLabel('');
     } catch (e) {
@@ -220,7 +221,7 @@ export default function LeftSidebar({ state, setState, api, loadSideData, refres
             <List sx={{ p: 0, mt: 0.5, mx: -1 }}>
               {state.accounts.map((account) => {
                 const isPrivateProxy = account.account_type === 'agent' && !account.is_public;
-                const canChat = !isPrivateProxy || account.owner_id === state.me?.id || state.me?.is_super_owner;
+                const canChat = ((!isPrivateProxy || account.owner_id === state.me?.id || state.me?.is_super_owner) && account.is_active) || account.account_type === 'human';
                 
                 return (
                 <ListItemButton 
@@ -238,7 +239,7 @@ export default function LeftSidebar({ state, setState, api, loadSideData, refres
                   <Stack direction="row" spacing={1.5} alignItems="center" sx={{ width: '100%', overflow: 'hidden' }}>
                     <AccountAvatar account={account} size={36} />
                     <Box sx={{ minWidth: 0 }}>
-                      <Typography fontWeight={700} noWrap>
+                      <Typography component="div" fontWeight={700} noWrap>
                         {account.name}{account.is_super_owner ? ' 🌟' : account.is_owner ? ' 👑' : ''}
                         {isPrivateProxy && <Chip label="Private" size="small" sx={{ ml: 1, height: 16, fontSize: '0.65rem' }} />}
                         {!account.is_active && <Chip label="Pending Approval" size="small" color="warning" sx={{ ml: 1, height: 16, fontSize: '0.65rem' }} />}

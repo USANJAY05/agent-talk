@@ -27,10 +27,11 @@ from backend.utils.helpers import (
 from backend.utils.sockets import RoomWebSocketHub, AccountWebSocketHub
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = Path("/tmp/agent-talk.sqlite3")
+DB_PATH = BASE_DIR / "agent-talk.sqlite3"
 STATIC_DIR = BASE_DIR / "frontend" / "dist"
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+Base.metadata.create_all(bind=engine)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 ws_hub = RoomWebSocketHub()
@@ -38,7 +39,22 @@ events_hub = AccountWebSocketHub()
 
 MAIN_LOOP: asyncio.AbstractEventLoop | None = None
 
-app = FastAPI(title="Agent Talk", version="0.4.0")
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Clear all used invites to "start fresh" with active ones
+    db = SessionLocal()
+    try:
+        from backend.models.database import AgentInvite
+        from sqlalchemy import delete
+        db.execute(delete(AgentInvite).where(AgentInvite.used == True))
+        db.commit()
+    except Exception as e:
+        print(f"Startup cleanup error: {e}")
+    finally:
+        db.close()
+    yield
+
+app = FastAPI(title="Agent Talk", version="0.4.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -101,7 +117,14 @@ def reset_legacy_db_if_needed() -> None:
     with engine.connect() as conn:
         room_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(rooms)")}
         account_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(accounts)")}
-    if (room_columns and ("room_type" not in room_columns or "created_by" not in room_columns or "logo_url" not in room_columns)) or (account_columns and ("username" not in account_columns or "logo_url" not in account_columns)):
+        invite_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(agent_invites)")}
+    
+    needs_reset = False
+    if room_columns and ("room_type" not in room_columns or "created_by" not in room_columns or "logo_url" not in room_columns): needs_reset = True
+    if account_columns and ("username" not in account_columns or "logo_url" not in account_columns): needs_reset = True
+    if invite_columns and ("username" not in invite_columns): needs_reset = True
+    
+    if needs_reset:
         DB_PATH.unlink(missing_ok=True)
 
 @app.on_event("startup")
@@ -127,6 +150,14 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username already exists")
     
     account_id = normalize_id(name)
+    if payload.account_type == "agent" and payload.invite_token:
+        # Pre-check invite to see if username is being forced
+        invite = db.get(AgentInvite, payload.invite_token.strip())
+        if invite and invite.username:
+            username = normalize_id(invite.username)
+            if db.scalar(select(Account).where(Account.username == username)):
+                raise HTTPException(status_code=400, detail="Requested username from invite is already taken")
+
     base_id = account_id
     i = 2
     while db.get(Account, account_id):
@@ -148,8 +179,11 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)):
         if invite and not invite.used:
             assigned_owner = invite.owner_id
             assigned_public = False
-            invite.used = True
-            db.add(invite)
+            if invite.name:
+                name = invite.name.strip()
+            if invite.username:
+                username = normalize_id(invite.username)
+            db.delete(invite)
 
     account = Account(
         id=account_id,
@@ -167,18 +201,8 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)):
     db.add(account)
     db.flush()
 
-    if is_super_owner:
-        room = Room(name="Mission Control", room_type="group", created_by=account.id)
-        db.add(room)
-        db.flush()
-        ensure_member(db, room.id, account.id)
-    else:
-        owner = owner_account(db)
-        if owner:
-            room = db.scalar(select(Room).where(Room.name == "Mission Control"))
-            if room:
-                ensure_member(db, room.id, account.id)
-
+    # No default rooms created during signup for fresh start
+    
     token = secrets.token_urlsafe(32)
     from backend.models.database import AuthSession
     db.add(AuthSession(token=token, account_id=account.id))
@@ -235,8 +259,10 @@ async def create_room(payload: RoomCreate, current: Account = Depends(get_curren
         if other.account_type == "agent" and not other.is_active:
             raise HTTPException(status_code=403, detail="This agent is pending approval")
         
-        owner = owner_account(db)
-        ids = sorted({current.id, other.id, *([owner.id] if owner else [])})
+        ids_set = {current.id, other.id}
+        if other.account_type == "agent" and other.owner_id:
+            ids_set.add(other.owner_id)
+        ids = sorted(ids_set)
         direct_name = "DM: " + " / ".join(ids)
         existing = db.scalar(select(Room).where(Room.name == direct_name))
         if existing:
@@ -254,12 +280,16 @@ async def create_room(payload: RoomCreate, current: Account = Depends(get_curren
         db.add(room)
         db.flush()
         ensure_member(db, room.id, current.id)
-        ensure_owner_in_room(db, room.id)
         for mid in payload.member_ids:
             m = db.get(Account, mid)
-            if m and m.account_type == "agent" and not m.is_active:
-                continue # Skip unapproved agents
-            ensure_member(db, room.id, mid)
+            if m and m.account_type == "agent":
+                if not m.is_active:
+                    continue # Skip unapproved agents
+                ensure_member(db, room.id, mid)
+                if m.owner_id:
+                    ensure_member(db, room.id, m.owner_id)
+            elif m:
+                ensure_member(db, room.id, mid)
 
     db.commit()
     db.refresh(room)
@@ -291,6 +321,46 @@ def room_members(room_id: int, current: Account = Depends(get_current_account), 
         raise HTTPException(status_code=403, detail="Forbidden")
     memberships = db.scalars(select(RoomMembership).where(RoomMembership.room_id == room_id)).all()
     return [account_out(m.account) for m in memberships]
+
+@app.post("/api/rooms/{room_id}/members/{account_id}")
+async def add_room_member(room_id: int, account_id: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    room = db.get(Room, room_id)
+    if not room or room.room_type != "group":
+        raise HTTPException(status_code=400, detail="Invalid room or not a group")
+    if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == current.id)):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    target = db.get(Account, account_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    if target.account_type == "agent":
+        if not target.is_active:
+             raise HTTPException(status_code=403, detail="This agent is pending approval")
+        if not can_access_agent(db, target, current):
+             raise HTTPException(status_code=403, detail="This agent is private")
+
+    ensure_member(db, room.id, target.id)
+    if target.account_type == "agent" and target.owner_id:
+        ensure_member(db, room.id, target.owner_id)
+        
+    db.commit()
+    db.refresh(room)
+    res = room_out(room)
+    
+    await broadcast_room_event(
+        db,
+        room.id,
+        build_event_envelope(
+            event_type="room.updated",
+            event_scope="room",
+            room_id=room.id,
+            account_ids=member_ids_for_room(db, room.id),
+            actor_account_id=current.id,
+            room=res,
+        ),
+    )
+    return res
 
 @app.post("/api/rooms/{room_id}/messages", response_model=MessageOut)
 async def create_message(room_id: int, payload: MessageCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
@@ -354,17 +424,26 @@ async def create_message(room_id: int, payload: MessageCreate, current: Account 
 @app.get("/api/agent-invites", response_model=list[InviteOut])
 def list_invites(current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
     from sqlalchemy import select
-    invites = db.scalars(select(AgentInvite).where(AgentInvite.owner_id == current.id).order_by(AgentInvite.created_at.desc())).all()
-    return [InviteOut(token=i.token, used=i.used, name=i.name) for i in invites]
+    invites = db.scalars(
+        select(AgentInvite)
+        .where(AgentInvite.owner_id == current.id, AgentInvite.used == False)
+        .order_by(AgentInvite.created_at.desc())
+    ).all()
+    return [InviteOut(token=i.token, used=i.used, name=i.name, username=i.username) for i in invites]
 
 @app.post("/api/agent-invites", response_model=InviteOut)
 def create_invite(payload: InviteCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
     # Generate a fresh unique token every time (BotFather style)
     token = secrets.token_urlsafe(24)
-    invite = AgentInvite(token=token, owner_id=current.id, name=payload.name)
+    invite = AgentInvite(
+        token=token, 
+        owner_id=current.id, 
+        name=payload.name.strip() if payload.name else None,
+        username=payload.username.strip() if payload.username else None
+    )
     db.add(invite)
     db.commit()
-    return InviteOut(token=token, used=False, name=invite.name)
+    return InviteOut(token=token, used=False, name=invite.name, username=invite.username)
 
 @app.delete("/api/agent-invites/{token}")
 def delete_invite(token: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
@@ -439,6 +518,24 @@ def activate_account(account_id: str, current: Account = Depends(get_current_acc
     db.commit()
     db.refresh(acc)
     return account_out(acc)
+
+@app.delete("/api/accounts/{account_id}")
+def delete_account(account_id: str, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    acc = db.get(Account, account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Permission: only owner of the agent or a Super Owner can delete
+    if acc.owner_id != current.id and not current.is_owner:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    # Don't allow deleting the super owner via this endpoint (safety check)
+    if acc.is_owner and not current.is_owner:
+         raise HTTPException(status_code=403, detail="Cannot delete a Super Owner")
+
+    db.delete(acc)
+    db.commit()
+    return {"status": "ok"}
 
 # -- Internal / MCP logic --
 

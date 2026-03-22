@@ -23,19 +23,32 @@ class Account(Base):
     is_public: Mapped[bool] = mapped_column(Boolean, default=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True) # False means pending approval
 
+    # Relationships with cascades for easy deletion
+    auth_sessions: Mapped[list["AuthSession"]] = relationship(back_populates="account", cascade="all, delete-orphan")
+    room_memberships: Mapped[list["RoomMembership"]] = relationship(back_populates="account", cascade="all, delete-orphan")
+    messages: Mapped[list["Message"]] = relationship(back_populates="account", cascade="all, delete-orphan")
+    attention_events: Mapped[list["AttentionEvent"]] = relationship(back_populates="account", cascade="all, delete-orphan")
+    agent_invites: Mapped[list["AgentInvite"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
+    whitelists_as_agent: Mapped[list["AgentWhitelist"]] = relationship(back_populates="agent", foreign_keys="[AgentWhitelist.agent_id]", cascade="all, delete-orphan")
+    whitelists_as_account: Mapped[list["AgentWhitelist"]] = relationship(back_populates="account", foreign_keys="[AgentWhitelist.account_id]", cascade="all, delete-orphan")
+
 class AgentInvite(Base):
     __tablename__ = "agent_invites"
     token: Mapped[str] = mapped_column(String(100), primary_key=True)
     owner_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    username: Mapped[str | None] = mapped_column(String(50), nullable=True)
     used: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    owner: Mapped[Account] = relationship(back_populates="agent_invites")
 
 class AgentWhitelist(Base):
     __tablename__ = "agent_whitelist"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     agent_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
     account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
+    agent: Mapped[Account] = relationship(foreign_keys=[agent_id], back_populates="whitelists_as_agent")
+    account: Mapped[Account] = relationship(foreign_keys=[account_id], back_populates="whitelists_as_account")
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
@@ -43,7 +56,7 @@ class AuthSession(Base):
     token: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    account: Mapped[Account] = relationship()
+    account: Mapped[Account] = relationship(back_populates="auth_sessions")
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -63,7 +76,7 @@ class RoomMembership(Base):
     account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"))
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     room: Mapped[Room] = relationship(back_populates="memberships")
-    account: Mapped[Account] = relationship()
+    account: Mapped[Account] = relationship(back_populates="room_memberships")
 
 class Message(Base):
     __tablename__ = "messages"
@@ -73,7 +86,7 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     room: Mapped[Room] = relationship(back_populates="messages")
-    account: Mapped[Account] = relationship()
+    account: Mapped[Account] = relationship(back_populates="messages")
 
 class AttentionEvent(Base):
     __tablename__ = "attention_events"
@@ -85,7 +98,7 @@ class AttentionEvent(Base):
     preview: Mapped[str] = mapped_column(String(500), default="")
     consumed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    account: Mapped[Account] = relationship()
+    account: Mapped[Account] = relationship(back_populates="attention_events")
 
 # Pydantic Schemas
 class AccountOut(BaseModel):
@@ -133,10 +146,12 @@ class WhitelistCreate(BaseModel):
 class InviteOut(BaseModel):
     token: str
     name: str | None = None
+    username: str | None = None
     used: bool = False
 
 class InviteCreate(BaseModel):
     name: str | None = Field(default=None)
+    username: str | None = Field(default=None, max_length=50)
 
 class RoomCreate(BaseModel):
     name: str = Field(default="", max_length=120)

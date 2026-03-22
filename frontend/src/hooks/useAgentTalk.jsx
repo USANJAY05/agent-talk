@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFactory, sortMessages } from '../utils/helpers';
 
-const initialState = {
+const getInitialState = () => ({
   token: localStorage.getItem('agentTalkToken') || '',
   themeMode: localStorage.getItem('agentTalkTheme') || 'dark',
   me: null,
@@ -12,10 +12,10 @@ const initialState = {
   roomId: null,
   members: [],
   messages: [],
-};
+});
 
 export function useAgentTalk() {
-  const [state, setState] = useState(initialState);
+  const [state, setState] = useState(getInitialState);
   const roomSocketRef = useRef(null);
   const eventSocketRef = useRef(null);
   const navigate = useNavigate();
@@ -64,7 +64,24 @@ export function useAgentTalk() {
 
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const eventSocket = new WebSocket(`${scheme}://${window.location.host}/ws/events?token=${encodeURIComponent(state.token)}`);
-    eventSocket.onmessage = async () => {
+    eventSocket.onmessage = async (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'message.created' && payload.message && payload.actor_account_id !== state.me?.id) {
+          const isCurrentRoom = payload.room_id === state.roomId;
+          if (document.hidden || !isCurrentRoom) {
+            if (Notification.permission === 'granted') {
+              const title = `New message from ${payload.message.account_name}`;
+              new Notification(title, {
+                body: payload.message.content,
+                icon: payload.message.logo_url || '/vite.svg'
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // ignore parse error for basic refreshes
+      }
       await loadSideData();
       await refreshCurrentRoom();
     };
@@ -85,7 +102,7 @@ export function useAgentTalk() {
       await refreshCurrentRoom();
     };
     roomSocketRef.current = roomSocket;
-  }, [state.token, state.roomId, loadSideData, refreshCurrentRoom]);
+  }, [state.token, state.roomId, state.me?.id, loadSideData, refreshCurrentRoom]);
 
   useEffect(() => {
     localStorage.setItem('agentTalkTheme', state.themeMode);
