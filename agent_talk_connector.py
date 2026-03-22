@@ -140,30 +140,17 @@ class AgentTalkConnector:
         return await loop.run_in_executor(None, _run)
 
     async def _stream_reply(self, room_id: int, full_reply: str):
-        """Simulate a streaming response by posting an empty message and pushing chunks via PUT."""
+        """Post a valid reply message. Backend requires non-empty content."""
         loop = asyncio.get_event_loop()
-        
-        def push_message(msg_id, content):
-            if msg_id is None:
-                return self._api_sync(f"/api/rooms/{room_id}/messages", method="POST", data={"content": content})
-            else:
-                return self._api_sync(f"/api/rooms/{room_id}/messages/{msg_id}", method="PUT", data={"content": content})
 
-        # 1. Post initial typing message
-        msg = await loop.run_in_executor(None, push_message, None, "")
-        if not msg: return
-        msg_id = msg["id"]
+        def push_message(content):
+            return self._api_sync(f"/api/rooms/{room_id}/messages", method="POST", data={"content": content})
 
-        # 2. Stream chunks
-        chunk_size = 3
-        accumulated = ""
-        words = full_reply.split(" ")
-        
-        for i, word in enumerate(words):
-            accumulated += word + (" " if i < len(words) - 1 else "")
-            if i % chunk_size == 0 or i == len(words) - 1:
-                await asyncio.sleep(0.1) # Typewriter effect
-                await loop.run_in_executor(None, push_message, msg_id, accumulated)
+        clean = (full_reply or "").strip()
+        if not clean:
+            return
+
+        await loop.run_in_executor(None, push_message, clean)
 
     async def handle_attention(self):
         """Fetch pending attention events and reply if needed."""
