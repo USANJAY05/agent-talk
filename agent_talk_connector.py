@@ -50,12 +50,18 @@ class AgentTalkConnector:
         self.state = self._load_state()
 
     def _load_state(self) -> dict[str, Any]:
+        state = {"sessions": {}}
         if self.state_file.exists():
             try:
-                return json.loads(self.state_file.read_text())
+                loaded = json.loads(self.state_file.read_text())
+                if "sessions" in loaded:
+                    state["sessions"] = loaded["sessions"]
+                elif "session_id" in loaded:
+                    # Migrate old global session
+                    state["sessions"]["default"] = loaded["session_id"]
             except Exception:
                 pass
-        return {}
+        return state
 
     def _save_state(self) -> None:
         self.state_file.write_text(json.dumps(self.state, indent=2))
@@ -105,13 +111,14 @@ class AgentTalkConnector:
             self.account_id = session["account"]["id"]
             print(f"[+] Authenticated successfully! Account ID: {self.account_id}")
 
-    async def run_openclaw_agent(self, prompt: str) -> str:
+    async def run_openclaw_agent(self, prompt: str, room_id: int) -> str:
         """Run the local openclaw agent in a thread-safe way."""
         loop = asyncio.get_event_loop()
         def _run():
             cmd = ["openclaw", "agent", "--agent", self.agent_id, "--message", prompt, "--json"]
-            if self.state.get("session_id"):
-                cmd.extend(["--session-id", self.state["session_id"]])
+            room_str = str(room_id)
+            if room_str in self.state["sessions"]:
+                cmd.extend(["--session-id", self.state["sessions"][room_str]])
             
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -120,17 +127,43 @@ class AgentTalkConnector:
                 # Update session state
                 agent_meta = payload.get("result", {}).get("meta", {}).get("agentMeta", {})
                 if agent_meta.get("sessionId"):
-                    self.state["session_id"] = agent_meta["sessionId"]
+                    self.state["sessions"][room_str] = agent_meta["sessionId"]
                     self._save_state()
                 
                 # Extract texts
                 texts = [p["text"] for p in payload.get("result", {}).get("payloads", []) if p.get("text")]
                 return "\n".join(texts).strip()
             except Exception as e:
-                print(f"[!] AI Error: {e}")
+                print(f"[!] AI Error in room {room_id}: {e}")
                 return ""
 
         return await loop.run_in_executor(None, _run)
+
+    async def _stream_reply(self, room_id: int, full_reply: str):
+        """Simulate a streaming response by posting an empty message and pushing chunks via PUT."""
+        loop = asyncio.get_event_loop()
+        
+        def push_message(msg_id, content):
+            if msg_id is None:
+                return self._api_sync(f"/api/rooms/{room_id}/messages", method="POST", data={"content": content})
+            else:
+                return self._api_sync(f"/api/rooms/{room_id}/messages/{msg_id}", method="PUT", data={"content": content})
+
+        # 1. Post initial typing message
+        msg = await loop.run_in_executor(None, push_message, None, "")
+        if not msg: return
+        msg_id = msg["id"]
+
+        # 2. Stream chunks
+        chunk_size = 3
+        accumulated = ""
+        words = full_reply.split(" ")
+        
+        for i, word in enumerate(words):
+            accumulated += word + (" " if i < len(words) - 1 else "")
+            if i % chunk_size == 0 or i == len(words) - 1:
+                await asyncio.sleep(0.1) # Typewriter effect
+                await loop.run_in_executor(None, push_message, msg_id, accumulated)
 
     async def handle_attention(self):
         """Fetch pending attention events and reply if needed."""
@@ -145,7 +178,7 @@ class AgentTalkConnector:
                 if rid not in rooms: rooms[rid] = []
                 rooms[rid].append(ev)
 
-            for room_id, evs in rooms.items():
+            async def process_room(room_id: int, evs: list):
                 messages = self._api_sync(f"/api/rooms/{room_id}/messages")
                 members = self._api_sync(f"/api/rooms/{room_id}/members")
                 
@@ -154,7 +187,7 @@ class AgentTalkConnector:
                 if last_msg and last_msg["account_id"] == self.account_id:
                     # Just ack the events
                     for ev in evs: self._api_sync(f"/api/attention/{ev['id']}/ack", method="POST")
-                    continue
+                    return
 
                 print(f"[*] Processing room {room_id} (New messages: {len(evs)})")
                 
@@ -168,16 +201,55 @@ class AgentTalkConnector:
                     "Provide a helpful, concise response. Write ONLY your response text."
                 )
                 
-                reply = await self.run_openclaw_agent(prompt)
+                reply = await self.run_openclaw_agent(prompt, room_id)
                 if reply:
-                    self._api_sync(f"/api/rooms/{room_id}/messages", method="POST", data={"content": reply})
+                    await self._stream_reply(room_id, reply)
                 
                 # Ack processed events
                 for ev in evs:
                     self._api_sync(f"/api/attention/{ev['id']}/ack", method="POST")
 
+            # Dispatch all room processing concurrently
+            await asyncio.gather(*(process_room(rid, evs) for rid, evs in rooms.items()))
+
         except Exception as e:
             print(f"[!] Attention Handler Error: {e}")
+
+    async def proactive_tick(self):
+        """Periodically ping the agent with room context to allow proactive messages."""
+        if not self.token: return
+        while True:
+            await asyncio.sleep(60)
+            try:
+                rooms = self._api_sync("/api/rooms")
+                if not rooms: continue
+                
+                async def tick_room(room: dict):
+                    room_id = room["id"]
+                    messages = self._api_sync(f"/api/rooms/{room_id}/messages")
+                    members = self._api_sync(f"/api/rooms/{room_id}/members")
+                    
+                    transcript = "\n".join([f"{m['account_name']}: {m['content']}" for m in messages[-10:]])
+                    member_names = ", ".join([m["name"] for m in members])
+                    
+                    prompt = (
+                        f"You are {self.username}, an AI agent in the Agent Talk app. "
+                        f"Current room members: {member_names}. "
+                        f"Recent conversation:\n{transcript}\n\n"
+                        "SYSTEM TICK: Evaluate if the conversation flow or context demands your proactive interjection. "
+                        "If you need to say something helpful, write your response text. "
+                        "If you have absolutely nothing valuable to add and should stay quiet, reply EXACTLY with the word [SILENCE] and nothing else."
+                    )
+                    
+                    reply = await self.run_openclaw_agent(prompt, room_id)
+                    if reply and reply.strip() != "[SILENCE]":
+                        print(f"[*] Proactive message sent to room {room_id}")
+                        await self._stream_reply(room_id, reply.strip())
+                        
+                # Dispatch proactive ticks concurrently across all rooms
+                await asyncio.gather(*(tick_room(r) for r in rooms))
+            except Exception as e:
+                print(f"[!] Proactive Tick Error: {e}")
 
     async def start_listening(self):
         """Start the WebSocket event loop."""
@@ -197,6 +269,9 @@ class AgentTalkConnector:
                     # Initial check for any missed events
                     await self.handle_attention()
                     
+                    # Start background loop explicitly
+                    tick_task = asyncio.create_task(self.proactive_tick())
+                    
                     while True:
                         msg = await ws.recv()
                         data = json.loads(msg)
@@ -205,8 +280,10 @@ class AgentTalkConnector:
                             # Small delay to let DB settle if needed
                             await asyncio.sleep(0.5)
                             await self.handle_attention()
-
+                            
             except (ConnectionClosed, ConnectionRefusedError, urllib.error.URLError) as e:
+                if 'tick_task' in locals() and not tick_task.done():
+                    tick_task.cancel()
                 print(f"[!] Connection failed: {e}. Retrying in {retry_delay}s...")
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 60) # Exponential backoff
