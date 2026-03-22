@@ -3,19 +3,6 @@ set -e
 
 cd "$(dirname "$0")"
 
-if [[ "$1" == "--reset" ]]; then
-    echo "========================================="
-    echo "FACTORY RESET DETECTED"
-    echo "Stopping existing services..."
-    # Attempt stop.sh and also force kill port 8010
-    bash stop.sh || true
-    lsof -t -i :8010 | xargs kill -9 2>/dev/null || true
-    echo "Deleting local database..."
-    rm -f agent-talk.sqlite3
-    echo "Factory reset complete. Starting fresh..."
-    echo "========================================="
-fi
-
 # Setup backend
 echo "Starting backend..."
 if [ ! -d ".venv" ]; then

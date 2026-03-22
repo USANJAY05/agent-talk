@@ -421,6 +421,37 @@ async def create_message(room_id: int, payload: MessageCreate, current: Account 
             )
     return res
 
+@app.put("/api/rooms/{room_id}/messages/{message_id}", response_model=MessageOut)
+async def update_message(room_id: int, message_id: int, payload: MessageCreate, current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
+    if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == current.id)):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    msg = db.scalar(select(Message).where(Message.id == message_id, Message.room_id == room_id))
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if msg.account_id != current.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    msg.content = payload.content.strip()
+    db.commit()
+    db.refresh(msg)
+    res = message_out(msg)
+    room_member_ids = member_ids_for_room(db, room_id)
+
+    await broadcast_room_event(
+        db,
+        room_id,
+        build_event_envelope(
+            event_type="message.updated",
+            event_scope="room",
+            room_id=room_id,
+            account_ids=room_member_ids,
+            actor_account_id=current.id,
+            message=res,
+        ),
+    )
+    return res
+
 @app.get("/api/agent-invites", response_model=list[InviteOut])
 def list_invites(current: Account = Depends(get_current_account), db: Session = Depends(get_db)):
     from sqlalchemy import select
@@ -581,14 +612,22 @@ def acknowledge_attention(event_id: int, current: Account = Depends(get_current_
 async def room_socket(websocket: WebSocket, room_id: int):
     token = websocket.query_params.get("token", "")
     db = SessionLocal()
-    acc = get_account_for_token(db, token)
+    try:
+        acc = get_account_for_token(db, token)
+        if acc:
+            is_member = db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == acc.id))
+        else:
+            is_member = False
+    finally:
+        db.close()
+        
     if not acc:
         await websocket.close(code=4401)
         return
-    if not db.scalar(select(RoomMembership).where(RoomMembership.room_id == room_id, RoomMembership.account_id == acc.id)):
+    if not is_member:
         await websocket.close(code=4403)
         return
-    db.close()
+        
     await ws_hub.connect(room_id, acc.id, websocket)
     try:
         while True: await websocket.receive_text()
@@ -599,11 +638,15 @@ async def room_socket(websocket: WebSocket, room_id: int):
 async def event_socket(websocket: WebSocket):
     token = websocket.query_params.get("token", "")
     db = SessionLocal()
-    acc = get_account_for_token(db, token)
+    try:
+        acc = get_account_for_token(db, token)
+    finally:
+        db.close()
+        
     if not acc:
         await websocket.close(code=4403)
         return
-    db.close()
+        
     await events_hub.connect(acc.id, websocket)
     try:
         while True: await websocket.receive_text()

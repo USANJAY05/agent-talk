@@ -67,6 +67,8 @@ export function useAgentTalk() {
     eventSocket.onmessage = async (event) => {
       try {
         const payload = JSON.parse(event.data);
+        if (payload.type === 'message.updated') return; // Handled purely by room socket to prevent jitter
+
         if (payload.type === 'message.created' && payload.message && payload.actor_account_id !== state.me?.id) {
           const isCurrentRoom = payload.room_id === state.roomId;
           if (document.hidden || !isCurrentRoom) {
@@ -91,6 +93,15 @@ export function useAgentTalk() {
     const roomSocket = new WebSocket(`${scheme}://${window.location.host}/ws/rooms/${state.roomId}?token=${encodeURIComponent(state.token)}`);
     roomSocket.onmessage = async (event) => {
       const payload = JSON.parse(event.data);
+      
+      if (payload.type === 'message.updated' && payload.room_id === state.roomId && payload.message) {
+        setState((prev) => ({
+          ...prev, 
+          messages: prev.messages.map(m => m.id === payload.message.id ? payload.message : m)
+        }));
+        return;
+      }
+
       if (payload.type === 'message.created' && payload.room_id === state.roomId && payload.message) {
         setState((prev) => {
           const exists = prev.messages.some((message) => message.id === payload.message.id);
