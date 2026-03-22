@@ -1,7 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
-agent_talk.sqlite3
+agent-talk.sqlite3
 frontend/node_modules/
 *.sqlite3
 *.db
