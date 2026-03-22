@@ -29,6 +29,7 @@ from backend.utils.sockets import RoomWebSocketHub, AccountWebSocketHub
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = BASE_DIR / "agent-talk.sqlite3"
 STATIC_DIR = BASE_DIR / "frontend" / "dist"
+SKILL_FILE = BASE_DIR / "_agent" / "skills" / "agent-talk-bridge" / "SKILL.md"
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 Base.metadata.create_all(bind=engine)
@@ -139,6 +140,12 @@ async def startup() -> None:
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/api/downloads/agent-talk-bridge-skill")
+def download_agent_talk_bridge_skill():
+    if not SKILL_FILE.exists():
+        raise HTTPException(status_code=404, detail="Skill file not found")
+    return FileResponse(SKILL_FILE, media_type="text/markdown", filename="agent-talk-bridge-SKILL.md")
 
 @app.post("/api/signup", response_model=SessionOut)
 def signup(payload: SignupRequest, db: Session = Depends(get_db)):

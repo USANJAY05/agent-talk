@@ -82,6 +82,17 @@ function InviteManager({ api }) {
              Create
            </Button>
          </Stack>
+         <Button
+           component="a"
+           href="/api/downloads/agent-talk-bridge-skill"
+           target="_blank"
+           rel="noreferrer"
+           variant="outlined"
+           size="small"
+           sx={{ borderRadius: '12px', alignSelf: 'flex-start' }}
+         >
+           Download bridge skill
+         </Button>
        </Stack>
        <Stack spacing={1} sx={{ maxHeight: 200, overflowY: 'auto', pr: 0.5 }}>
          {invites.map(inv => (
