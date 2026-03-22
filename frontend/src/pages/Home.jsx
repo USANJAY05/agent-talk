@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppBar, Box, Button, CssBaseline, Drawer, IconButton, Stack, ThemeProvider, Toolbar, Tooltip, Typography, alpha, createTheme } from '@mui/material';
-import { DarkMode, LightMode, Logout, Menu, Refresh } from '@mui/icons-material';
+import { DarkMode, LightMode, Logout, Menu, Refresh, NotificationsActive, NotificationsOff } from '@mui/icons-material';
 import LeftSidebar from '../components/LeftSidebar';
 import RightSidebar from '../components/RightSidebar';
 import ChatArea from '../components/ChatArea';
@@ -15,6 +15,17 @@ export default function Home() {
   const [rightCollapsed, setRightCollapsed] = useState(true);
   const [mobileRoomsOpen, setMobileRoomsOpen] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState(Notification.permission);
+
+  const requestNotifications = () => {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then((perm) => {
+        setNotificationStatus(perm);
+      });
+    } else if (Notification.permission === 'denied') {
+      alert("Notifications are blocked by your browser settings. Please enable them to receive alerts.");
+    }
+  };
 
   if (!state.token) return null; // let the hook redirect to /login
 
@@ -27,6 +38,11 @@ export default function Home() {
           </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 800 }}>Agent Talk</Typography>
           <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Tooltip title={notificationStatus === 'granted' ? "Notifications Enabled" : "Enable Push Notifications"}>
+              <IconButton color={notificationStatus === 'granted' ? "primary" : "default"} onClick={requestNotifications}>
+                {notificationStatus === 'granted' ? <NotificationsActive /> : <NotificationsOff />}
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Toggle theme">
               <IconButton onClick={() => setState((prev) => ({ ...prev, themeMode: prev.themeMode === 'dark' ? 'light' : 'dark' }))}>
                 {state.themeMode === 'dark' ? <LightMode /> : <DarkMode />}
@@ -50,7 +66,7 @@ export default function Home() {
 
         {!rightCollapsed && (
           <Box sx={{ width: RIGHTBAR_WIDTH, display: { xs: 'none', lg: 'block' }, flexShrink: 0, minHeight: 0, overflow: 'hidden', mb: { xs: 0, md: 2 } }}>
-            <RightSidebar state={state} setCollapse={setRightCollapsed} api={api} setState={setState} />
+            <RightSidebar state={state} setCollapse={setRightCollapsed} api={api} setState={setState} loadSideData={loadSideData} refreshCurrentRoom={refreshCurrentRoom} />
           </Box>
         )}
       </Box>
@@ -59,7 +75,7 @@ export default function Home() {
         <Box sx={{ width: DRAWER_WIDTH }}><LeftSidebar state={state} setState={setState} api={api} loadSideData={loadSideData} refreshCurrentRoom={refreshCurrentRoom} setMobileRoomsOpen={setMobileRoomsOpen} /></Box>
       </Drawer>
       <Drawer anchor="right" open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} sx={{ display: { xs: 'block', lg: 'none' } }}>
-        <Box sx={{ width: RIGHTBAR_WIDTH }}><RightSidebar state={state} setCollapse={setRightCollapsed} api={api} setState={setState} /></Box>
+        <Box sx={{ width: RIGHTBAR_WIDTH }}><RightSidebar state={state} setCollapse={setRightCollapsed} api={api} setState={setState} loadSideData={loadSideData} refreshCurrentRoom={refreshCurrentRoom} /></Box>
       </Drawer>
     </Box>
   );

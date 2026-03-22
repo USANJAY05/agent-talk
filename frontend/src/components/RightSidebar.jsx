@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { alpha, Autocomplete, Avatar, Box, Button, Chip, Collapse, Divider, FormControlLabel, IconButton, List, ListItem, ListItemButton, ListItemText, Paper, Stack, Switch, TextField, Typography } from '@mui/material';
+import { Alert, alpha, Autocomplete, Avatar, Box, Button, Chip, Collapse, Divider, FormControlLabel, IconButton, List, ListItem, ListItemButton, ListItemText, Paper, Stack, Switch, TextField, Typography } from '@mui/material';
 import { Close, Edit, ExpandLess, ExpandMore, Group } from '@mui/icons-material';
 import AccountAvatar from './AccountAvatar';
 import { displayRoomName, formatShortDate, roomLabel } from '../utils/helpers';
@@ -8,6 +8,7 @@ function InviteManager({ api }) {
   const [invites, setInvites] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newUsername, setNewUsername] = useState('');
 
   const load = async () => {
     try {
@@ -23,16 +24,26 @@ function InviteManager({ api }) {
     try {
       await api('/api/agent-invites', { 
         method: 'POST', 
-        body: JSON.stringify({ name: newName.trim() || null }) 
+        body: JSON.stringify({ 
+          name: newName.trim() || null,
+          username: newUsername.trim() || null
+        }) 
       });
       setNewName('');
+      setNewUsername('');
       await load();
     } catch (e) { alert(e.message); }
     setLoading(false);
   };
 
-  const copyCmd = (token) => {
-    const cmd = `AGENT_TALK_INVITE_TOKEN="${token}" AGENT_TALK_BASE_URL="http://localhost:4000" AGENT_TALK_BRIDGE_USERNAME="TerminalAgent" python bridge_worker.py`;
+  const copyCmd = (inv) => {
+    let normalized = 'fresh-agent';
+    if (inv.username) {
+        normalized = inv.username;
+    } else if (inv.name) {
+        normalized = inv.name.trim().toLowerCase().replace(/\s+/g, '-');
+    }
+    const cmd = `AGENT_TALK_INVITE_TOKEN="${inv.token}" AGENT_TALK_BASE_URL="http://localhost:8010" AGENT_TALK_BRIDGE_USERNAME="${normalized}" python bridge_worker.py`;
     navigator.clipboard.writeText(cmd);
     alert("Command copied to clipboard!");
   };
@@ -47,18 +58,30 @@ function InviteManager({ api }) {
 
   return (
     <Stack spacing={1.5}>
-       <Stack direction="row" spacing={1}>
+       <Stack spacing={1}>
          <TextField 
            fullWidth 
            size="small" 
-           label="Agent Label" 
-           value={newName} 
-           onChange={e => setNewName(e.target.value)}
+           label="Agent Username" 
+           placeholder="e.g. sales_bot"
+           value={newUsername} 
+           onChange={e => setNewUsername(e.target.value)}
            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
          />
-         <Button onClick={handleCreate} disabled={loading} variant="contained" sx={{ borderRadius: '12px', minWidth: 80 }}>
-           Add
-         </Button>
+         <Stack direction="row" spacing={1}>
+           <TextField 
+             fullWidth 
+             size="small" 
+             label="Display Name" 
+             placeholder="e.g. Sales Assistant Pro"
+             value={newName} 
+             onChange={e => setNewName(e.target.value)}
+             sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+           />
+           <Button onClick={handleCreate} disabled={loading} variant="contained" sx={{ borderRadius: '12px', minWidth: 80 }}>
+             Create
+           </Button>
+         </Stack>
        </Stack>
        <Stack spacing={1} sx={{ maxHeight: 200, overflowY: 'auto', pr: 0.5 }}>
          {invites.map(inv => (
@@ -70,7 +93,7 @@ function InviteManager({ api }) {
                  <Chip label={inv.used ? "Used" : "Available"} size="small" color={inv.used ? "default" : "success"} sx={{ height: 16, fontSize: '0.6rem' }} />
                </Box>
                <Stack direction="row">
-                 <Button size="small" variant="text" sx={{ fontSize: '0.65rem', minWidth: 0, px: 1 }} onClick={() => copyCmd(inv.token)}>Copy</Button>
+                 <Button size="small" variant="text" sx={{ fontSize: '0.65rem', minWidth: 0, px: 1 }} onClick={() => copyCmd(inv)}>Copy</Button>
                  <Button size="small" variant="text" color="error" sx={{ fontSize: '0.65rem', minWidth: 0, px: 1 }} onClick={() => handleDelete(inv.token)}>Delete</Button>
                </Stack>
              </Stack>
@@ -90,7 +113,7 @@ export default function RightSidebar({ state, setState, setCollapse, api, loadSi
 
   const isGroup = currentRoom?.room_type === 'group';
   const targetMember = currentRoom 
-    ? (state.members.find(m => m.id !== state.me?.id) || state.members[0]) 
+    ? (state.members.find(m => m.id !== state.me?.id && m.account_type === 'agent') || state.members.find(m => m.id !== state.me?.id) || state.members[0]) 
     : (state.previewProfile || null);
 
   const ownedAgents = useMemo(() => {
@@ -123,6 +146,18 @@ export default function RightSidebar({ state, setState, setCollapse, api, loadSi
     await api(`/api/accounts/${targetMember.id}/visibility`, { method: 'PUT', body: JSON.stringify({ is_public: isPublic }) });
     if (loadSideData) await loadSideData();
     if (refreshCurrentRoom) await refreshCurrentRoom();
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${targetMember.name}? This will remove all their messages and data permanently.`)) return;
+    try {
+      await api(`/api/accounts/${targetMember.id}`, { method: 'DELETE' });
+      setState(prev => ({ ...prev, previewProfile: null, roomId: prev.roomId === targetMember.id ? null : prev.roomId }));
+      await loadSideData();
+      if (refreshCurrentRoom) await refreshCurrentRoom();
+    } catch (e) {
+      alert(e.message || "Failed to delete account");
+    }
   };
 
   useEffect(() => {
@@ -225,9 +260,20 @@ export default function RightSidebar({ state, setState, setCollapse, api, loadSi
                     variant="contained" 
                     color="success" 
                     onClick={async () => {
-                      await api(`/api/accounts/${targetMember.id}/activate`, { method: 'PUT' });
-                      await loadSideData();
-                      if (refreshCurrentRoom) await refreshCurrentRoom();
+                      try {
+                        await api(`/api/accounts/${targetMember.id}/activate`, { method: 'PUT' });
+                        setState(prev => ({
+                          ...prev,
+                          previewProfile: prev.previewProfile?.id === targetMember.id 
+                            ? { ...prev.previewProfile, is_active: true }
+                            : prev.previewProfile
+                        }));
+                        await loadSideData();
+                        if (refreshCurrentRoom) await refreshCurrentRoom();
+                      } catch (e) {
+                        console.error(e);
+                        alert(e.message || "Failed to activate agent");
+                      }
                     }}
                     sx={{ borderRadius: '12px', fontWeight: 800 }}
                   >
@@ -312,6 +358,16 @@ export default function RightSidebar({ state, setState, setCollapse, api, loadSi
                   }}
                   renderInput={(params) => <TextField {...params} label="Invite to Group" variant="outlined" />}
                 />
+
+                <Button 
+                  fullWidth 
+                  variant="outlined" 
+                  color="error" 
+                  onClick={handleDeleteAccount}
+                  sx={{ mt: 3, borderRadius: '12px', fontWeight: 800, borderColor: (theme) => alpha(theme.palette.error.main, 0.4) }}
+                >
+                  Delete Agent Account
+                </Button>
               </Box>
             )}
           </Box>
