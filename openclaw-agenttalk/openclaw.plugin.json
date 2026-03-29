@@ -1,0 +1,24 @@
+{
+  "id": "agenttalk",
+  "name": "AgentTalk",
+  "version": "2.0.0",
+  "description": "AgentTalk channel — persistent credentials, auto token renewal, pairing flow",
+  "license": "MIT",
+  "channels": ["agenttalk"],
+  "configSchema": {
+    "type": "object",
+    "required": ["apiUrl", "agentId", "chatId"],
+    "properties": {
+      "apiUrl":       { "type": "string", "description": "AgentTalk base URL" },
+      "agentToken":   { "type": "string", "description": "Current agent token (auto-renewed)" },
+      "pairingCode":  { "type": "string", "description": "Pairing code for confirm_pairing handshake" },
+      "agentId":      { "type": "string", "description": "Agent UUID (set by setup.mjs)" },
+      "chatId":       { "type": "string", "description": "Chat room UUID (set by setup.mjs)" },
+      "identityName": { "type": "string", "description": "Agent display name sent on first identity setup" },
+      "identityUsername": { "type": "string", "description": "Agent username sent on first identity setup" },
+      "identityDescription": { "type": "string", "description": "Agent bio/description sent on first identity setup" },
+      "systemPrompt": { "type": "string", "description": "AI system prompt" },
+      "passiveListen":{ "type": "boolean", "default": false }
+    }
+  }
+}

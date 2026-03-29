@@ -1,0 +1,27 @@
+{
+  "name": "openclaw-agenttalk",
+  "version": "2.0.0",
+  "description": "OpenClaw channel plugin for AgentTalk — persistent token renewal, pairing flow, streaming replies",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "openclaw": {
+    "extensions": ["./src/index.ts"]
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.4.5"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}
